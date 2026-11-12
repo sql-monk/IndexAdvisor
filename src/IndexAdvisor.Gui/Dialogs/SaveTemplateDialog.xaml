@@ -1,0 +1,32 @@
+<Window x:Class="IndexAdvisor.Gui.Dialogs.SaveTemplateDialog"
+		xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+		xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+		Title="Зберегти як шаблон"
+		Width="620"
+		SizeToContent="Height"
+		ResizeMode="NoResize"
+		WindowStartupLocation="CenterOwner"
+		ShowInTaskbar="False">
+	<StackPanel Margin="24,20,24,20">
+		<TextBlock Text="Зберегти конфігурацію як шаблон" FontSize="18" FontWeight="SemiBold" />
+		<TextBlock Margin="0,6,0,0" Opacity="0.75" TextWrapping="Wrap"
+				   Text="Шаблон — звичайний YAML у теці шаблонів. З нього створюються нові конфігурації: вказуєте сервер і бази, решта береться з шаблону." />
+
+		<TextBlock Text="Назва" FontWeight="SemiBold" Margin="0,16,0,4" />
+		<TextBox x:Name="NameBox" AutomationProperties.Name="Назва шаблону" />
+
+		<TextBlock Text="Опис (необов'язково)" FontWeight="SemiBold" Margin="0,12,0,4" />
+		<TextBox x:Name="DescriptionBox" AutomationProperties.Name="Опис шаблону" />
+
+		<CheckBox x:Name="WithoutServers" Content="Не зберігати сервери (servers) — підставлятимуться під час створення" IsChecked="True" Margin="0,14,0,0" />
+		<CheckBox x:Name="WithoutDatabases" Content="Не зберігати бази (scope.databases.include) — підставлятимуться під час створення" IsChecked="True" Margin="0,8,0,0" />
+
+		<TextBlock x:Name="FolderText" Opacity="0.7" FontSize="12" TextWrapping="Wrap" Margin="0,14,0,0" />
+		<TextBlock x:Name="ErrorText" Foreground="{DynamicResource StatusErrorBrush}" TextWrapping="Wrap" Margin="0,8,0,0" Visibility="Collapsed" />
+
+		<StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
+			<Button Content="Зберегти" MinWidth="120" IsDefault="True" Click="OnSave" Style="{DynamicResource AccentButtonStyle}" />
+			<Button Content="Скасувати" MinWidth="110" IsCancel="True" Margin="8,0,0,0" />
+		</StackPanel>
+	</StackPanel>
+</Window>

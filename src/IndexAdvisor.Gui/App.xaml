@@ -1,0 +1,64 @@
+<Application x:Class="IndexAdvisor.Gui.App"
+			 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+			 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+			 xmlns:infra="clr-namespace:IndexAdvisor.Gui.Infrastructure"
+			 ShutdownMode="OnMainWindowClose">
+	<Application.Resources>
+		<ResourceDictionary>
+			<infra:StatusBrushConverter x:Key="StatusBrush" />
+			<infra:HostLineBrushConverter x:Key="HostLineBrush" />
+			<infra:EmptyToVisibleConverter x:Key="EmptyToVisible" />
+			<infra:BoolToVisibilityConverter x:Key="BoolToVisibility" />
+			<infra:InverseBoolConverter x:Key="InverseBool" />
+
+			<!-- StatusErrorBrush, StatusWarningBrush, BadgeForegroundBrush тощо реєструє ThemePalette.Register (залежать від теми). -->
+
+			<FontFamily x:Key="MonoFont">Cascadia Mono, Consolas, Courier New</FontFamily>
+
+			<!-- Підпис поля форми. -->
+			<Style x:Key="FieldLabel" TargetType="TextBlock">
+				<Setter Property="Margin" Value="0,10,0,4" />
+				<Setter Property="FontWeight" Value="SemiBold" />
+			</Style>
+
+			<!-- Підказка «з конфігурації: …». -->
+			<Style x:Key="HintText" TargetType="TextBlock">
+				<Setter Property="Opacity" Value="0.62" />
+				<Setter Property="FontSize" Value="12" />
+				<Setter Property="TextWrapping" Value="Wrap" />
+				<Setter Property="Margin" Value="0,3,0,0" />
+			</Style>
+
+			<!-- Текст-підказка поверх порожнього TextBox. -->
+			<Style x:Key="Watermark" TargetType="TextBlock">
+				<Setter Property="Opacity" Value="0.5" />
+				<Setter Property="IsHitTestVisible" Value="False" />
+				<Setter Property="Margin" Value="12,0,12,0" />
+				<Setter Property="VerticalAlignment" Value="Center" />
+				<Setter Property="TextTrimming" Value="CharacterEllipsis" />
+			</Style>
+
+			<Style x:Key="SectionHeader" TargetType="TextBlock">
+				<Setter Property="FontSize" Value="15" />
+				<Setter Property="FontWeight" Value="SemiBold" />
+				<Setter Property="Margin" Value="0,18,0,2" />
+			</Style>
+
+			<Style x:Key="Card" TargetType="Border">
+				<Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+				<Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+				<Setter Property="BorderThickness" Value="1" />
+				<Setter Property="CornerRadius" Value="8" />
+				<Setter Property="Padding" Value="16,12" />
+			</Style>
+
+			<!-- Кольорова мітка статусу. -->
+			<Style x:Key="Badge" TargetType="Border">
+				<Setter Property="CornerRadius" Value="10" />
+				<Setter Property="Padding" Value="8,1" />
+				<Setter Property="HorizontalAlignment" Value="Left" />
+				<Setter Property="VerticalAlignment" Value="Center" />
+			</Style>
+		</ResourceDictionary>
+	</Application.Resources>
+</Application>

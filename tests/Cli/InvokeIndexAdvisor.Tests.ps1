@@ -138,6 +138,16 @@ Describe 'Invoke-IndexAdvisor' {
 		Mock -ModuleName IndexAdvisor Remove-IaExpiredHistory { 0 }
 	}
 
+	It 'без жодної таблиці в контексті модель не викликається, у запуску — попередження' {
+		Mock -ModuleName IndexAdvisor New-IaLlmContext {
+			[ordered]@{ payload = [ordered]@{ module = $Module; databases = @() }; includedObjectKeys = @(); truncatedObjects = @(); estimatedTokens = 10; module = $Module }
+		}
+		$results = Invoke-IndexAdvisor -Config $script:ConfigPath -PassThru 2>$null 3>$null
+		Should -Invoke -ModuleName IndexAdvisor Invoke-IaAnalysisLoop -Times 0 -Exactly
+		$messages = @($results[0].warnings | ForEach-Object { if ($_ -is [System.Collections.IDictionary]) { $_.message } else { [string]$_ } }) -join ' | '
+		$messages | Should -Match 'Аналіз моделлю \(Indexes\) пропущено'
+	}
+
 	It 'успішний запуск: код 0, RunResult з рекомендаціями, умовами 4.4 і періодом' {
 		$results = Invoke-IndexAdvisor -Config $script:ConfigPath -PassThru 2>$null 3>$null
 		$global:LASTEXITCODE | Should -Be 0

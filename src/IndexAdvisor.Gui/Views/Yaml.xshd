@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Проста підсвітка YAML для редактора конфігурації: коментарі, ключі, рядки, логічні значення, числа, посилання на секрети. -->
+<SyntaxDefinition name="YAML" extensions=".yaml;.yml" xmlns="http://icsharpcode.net/sharpdevelop/syntaxdefinition/2008">
+	<Color name="Comment" foreground="#3C7A3C" />
+	<Color name="Key" foreground="#0451A5" fontWeight="bold" />
+	<Color name="String" foreground="#A31515" />
+	<Color name="Constant" foreground="#0000C0" />
+	<Color name="Number" foreground="#098658" />
+	<Color name="SecretRef" foreground="#8E2C9A" />
+	<RuleSet>
+		<Span color="Comment" begin="(?&lt;=^|\s)\#" />
+		<Span color="String">
+			<Begin>"</Begin>
+			<End>"</End>
+			<RuleSet>
+				<Span begin="\\" end="." />
+			</RuleSet>
+		</Span>
+		<Span color="String">
+			<Begin>'</Begin>
+			<End>'</End>
+		</Span>
+		<Rule color="Key">^\s*(-\s+)?[\w.\-]+(?=\s*:(\s|$))</Rule>
+		<Rule color="SecretRef">\b(secret|env):[^\s#]+</Rule>
+		<Keywords color="Constant">
+			<Word>true</Word>
+			<Word>false</Word>
+			<Word>null</Word>
+			<Word>yes</Word>
+			<Word>no</Word>
+		</Keywords>
+		<Rule color="Number">\b\d+(\.\d+)?\b</Rule>
+	</RuleSet>
+</SyntaxDefinition>

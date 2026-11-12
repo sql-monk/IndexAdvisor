@@ -1,0 +1,291 @@
+<UserControl x:Class="IndexAdvisor.Gui.Views.RunView"
+			 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+			 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+			 xmlns:views="clr-namespace:IndexAdvisor.Gui.Views">
+	<Grid Margin="0,8,0,8">
+		<Grid.ColumnDefinitions>
+			<ColumnDefinition Width="470" MinWidth="380" />
+			<ColumnDefinition Width="Auto" />
+			<ColumnDefinition Width="*" MinWidth="420" />
+		</Grid.ColumnDefinitions>
+
+		<!-- Форма параметрів. -->
+		<ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+			<StackPanel DataContext="{Binding Run}" Margin="4,0,18,24">
+
+				<TextBlock Style="{StaticResource SectionHeader}" Margin="0,4,0,2" Text="Конфігурація YAML" />
+				<Grid Margin="0,6,0,0">
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="*" />
+						<ColumnDefinition Width="Auto" />
+					</Grid.ColumnDefinitions>
+					<TextBox Text="{Binding Config.Path, UpdateSourceTrigger=LostFocus}" ToolTip="{Binding Config.Path}" />
+					<TextBlock Style="{StaticResource Watermark}" Text="не вибрано — лише параметри форми"
+							   Visibility="{Binding Config.Path, Converter={StaticResource EmptyToVisible}}" />
+					<Button Grid.Column="1" Content="Відкрити…" Margin="6,0,0,0" Command="{Binding BrowseConfigCommand}" />
+				</Grid>
+				<WrapPanel Margin="0,8,0,0">
+					<Button Content="Перевірити" Command="{Binding ValidateConfigCommand}" Margin="0,0,6,6" ToolTip="Test-IaConfig: схема, типи, відкриті секрети" />
+					<Button Content="Редагувати" Command="{Binding EditConfigCommand}" Margin="0,0,6,6" />
+					<Button Content="Нова з шаблону…" Command="{Binding NewFromTemplateCommand}" Margin="0,0,6,6"
+							ToolTip="Вибрати шаблон і вказати лише сервери та бази" />
+					<Button Content="Зберегти поля в конфігурацію…" Command="{Binding SaveToConfigCommand}" Margin="0,0,6,6"
+							ToolTip="Записати заповнені поля цієї форми (сервери, бази, модуль, провайдер, режими…) у YAML: поточний файл або новий" />
+				</WrapPanel>
+				<Border Style="{StaticResource Card}" Margin="0,10,0,0">
+					<StackPanel>
+						<StackPanel Orientation="Horizontal">
+							<Ellipse Width="9" Height="9" Margin="0,0,8,0" VerticalAlignment="Center"
+									 Fill="{Binding Config.Severity, Converter={StaticResource StatusBrush}}" />
+							<TextBlock Text="{Binding Config.StatusText}" TextWrapping="Wrap" />
+						</StackPanel>
+						<ProgressBar IsIndeterminate="True" Height="3" Margin="0,8,0,0"
+									 Visibility="{Binding Config.IsChecking, Converter={StaticResource BoolToVisibility}}" />
+						<StackPanel Margin="0,8,0,0" Visibility="{Binding Config.Summary, Converter={StaticResource EmptyToVisible}, ConverterParameter=Invert}">
+							<TextBlock Style="{StaticResource HintText}" TextWrapping="Wrap">
+								<Run Text="Логін:" /> <Run Text="{Binding Config.Summary.Login, Mode=OneWay}" /> <Run Text="(" /><Run Text="{Binding Config.Summary.Authentication, Mode=OneWay}" /><Run Text=")" />
+							</TextBlock>
+							<TextBlock Style="{StaticResource HintText}" TextWrapping="Wrap">
+								<Run Text="Репозиторій:" /> <Run Text="{Binding Config.Summary.Repository, Mode=OneWay, TargetNullValue='не задано'}" />
+							</TextBlock>
+						</StackPanel>
+						<ItemsControl ItemsSource="{Binding Config.Errors}" Margin="0,6,0,0">
+							<ItemsControl.ItemTemplate>
+								<DataTemplate>
+									<TextBlock TextWrapping="Wrap" Margin="0,2,0,0" Foreground="{DynamicResource StatusErrorBrush}">
+										<Run Text="{Binding Location, Mode=OneWay}" FontWeight="SemiBold" />
+										<Run Text="{Binding Path, Mode=OneWay}" />
+										<Run Text="—" />
+										<Run Text="{Binding Message, Mode=OneWay}" />
+									</TextBlock>
+								</DataTemplate>
+							</ItemsControl.ItemTemplate>
+						</ItemsControl>
+					</StackPanel>
+				</Border>
+
+				<TextBlock Style="{StaticResource SectionHeader}" Text="Ціль аналізу" />
+				<TextBlock Style="{StaticResource HintText}" Text="Порожнє поле — значення з конфігурації. Кілька значень — через кому." />
+				<ItemsControl ItemsSource="{Binding ScopeOptions}">
+					<ItemsControl.ItemTemplate>
+						<DataTemplate>
+							<StackPanel>
+								<TextBlock Style="{StaticResource FieldLabel}" Text="{Binding Label}" />
+								<Grid ToolTip="{Binding ToolTip}">
+									<TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
+											 AutomationProperties.AutomationId="{Binding Key}" AutomationProperties.Name="{Binding Label}" />
+									<TextBlock Style="{StaticResource Watermark}" Text="{Binding Hint}"
+											   Visibility="{Binding Value, Converter={StaticResource EmptyToVisible}}" />
+								</Grid>
+							</StackPanel>
+						</DataTemplate>
+					</ItemsControl.ItemTemplate>
+				</ItemsControl>
+
+				<TextBlock Style="{StaticResource SectionHeader}" Text="Аналіз" />
+				<TextBlock Style="{StaticResource FieldLabel}" Text="Модуль" />
+				<ComboBox ItemsSource="{Binding ModuleChoices}" DisplayMemberPath="Display" SelectedValuePath="Value"
+						  SelectedValue="{Binding Module}" HorizontalAlignment="Stretch" />
+				<TextBlock Style="{StaticResource HintText}" Text="{Binding ModuleHint}" />
+
+				<Grid Margin="0,0,0,0">
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="*" />
+						<ColumnDefinition Width="12" />
+						<ColumnDefinition Width="*" />
+					</Grid.ColumnDefinitions>
+					<StackPanel>
+						<TextBlock Style="{StaticResource FieldLabel}" Text="Провайдер LLM" />
+						<ComboBox IsEditable="True" ItemsSource="{Binding ProviderChoices}"
+								  Text="{Binding Provider, UpdateSourceTrigger=PropertyChanged}"
+								  ToolTip="Ключ з llm.providers у конфігурації (-Provider)" />
+						<TextBlock Style="{StaticResource HintText}" Text="{Binding ProviderHint}" />
+					</StackPanel>
+					<StackPanel Grid.Column="2">
+						<TextBlock Style="{StaticResource FieldLabel}" Text="Модель" />
+						<Grid>
+							<TextBox Text="{Binding Model, UpdateSourceTrigger=PropertyChanged}" ToolTip="Перевизначити модель провайдера (-Model)" />
+							<TextBlock Style="{StaticResource Watermark}" Text="з провайдера"
+									   Visibility="{Binding Model, Converter={StaticResource EmptyToVisible}}" />
+						</Grid>
+						<TextBlock Style="{StaticResource HintText}" Text="{Binding ModelHint}" />
+					</StackPanel>
+				</Grid>
+
+				<Grid>
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="*" />
+						<ColumnDefinition Width="12" />
+						<ColumnDefinition Width="*" />
+					</Grid.ColumnDefinitions>
+					<StackPanel>
+						<TextBlock Style="{StaticResource FieldLabel}" Text="Перехресна перевірка" />
+						<ComboBox IsEditable="True" ItemsSource="{Binding ProviderChoices}"
+								  Text="{Binding CrossCheckProvider, UpdateSourceTrigger=PropertyChanged}"
+								  ToolTip="Друга модель перевіряє рекомендації першої (-CrossCheckProvider)" />
+					</StackPanel>
+					<StackPanel Grid.Column="2">
+						<TextBlock Style="{StaticResource FieldLabel}" Text="Вікно аналізу, днів" />
+						<Grid>
+							<TextBox Text="{Binding AnalysisWindowDaysText, UpdateSourceTrigger=PropertyChanged}" />
+							<TextBlock Style="{StaticResource Watermark}" Text="{Binding DaysHint}"
+									   Visibility="{Binding AnalysisWindowDaysText, Converter={StaticResource EmptyToVisible}}" />
+						</Grid>
+					</StackPanel>
+				</Grid>
+
+				<TextBlock Style="{StaticResource FieldLabel}" Text="Повторний аналіз з архіву (без нового збору)" />
+				<Grid>
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="*" />
+						<ColumnDefinition Width="Auto" />
+					</Grid.ColumnDefinitions>
+					<TextBox x:Name="FromArchiveBox" AutomationProperties.Name="Архів зібраних даних" Text="{Binding FromArchive, UpdateSourceTrigger=PropertyChanged}" />
+					<TextBlock Style="{StaticResource Watermark}" Text="не використовується — збір з серверів"
+							   Visibility="{Binding FromArchive, Converter={StaticResource EmptyToVisible}}" />
+					<Button Grid.Column="1" Content="…" Width="40" Margin="6,0,0,0" Command="{Binding BrowseArchiveCommand}" />
+				</Grid>
+
+				<Expander Header="Набори даних" Margin="0,16,0,0">
+					<StackPanel Margin="4,6,0,0">
+						<CheckBox Content="Задати набори явно" IsChecked="{Binding DatasetsExplicit}"
+								  ToolTip="Інакше — як у collector.datasets конфігурації" />
+						<TextBlock Style="{StaticResource HintText}" Text="{Binding DatasetsHint}" />
+						<ItemsControl ItemsSource="{Binding Datasets}" Margin="0,6,0,0"
+									  IsEnabled="{Binding DatasetsExplicit}">
+							<ItemsControl.ItemTemplate>
+								<DataTemplate>
+									<CheckBox IsChecked="{Binding IsChecked}" Margin="0,3,0,0">
+										<TextBlock>
+											<Run Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" />
+											<Run Text="—" />
+											<Run Text="{Binding Description, Mode=OneWay}" />
+										</TextBlock>
+									</CheckBox>
+								</DataTemplate>
+							</ItemsControl.ItemTemplate>
+						</ItemsControl>
+						<TextBlock Style="{StaticResource HintText}" Text="indexStructure і instanceStartTime збираються завжди." />
+					</StackPanel>
+				</Expander>
+
+				<TextBlock Style="{StaticResource SectionHeader}" Text="Результати" />
+				<TextBlock Style="{StaticResource FieldLabel}" Text="Каталог результатів" />
+				<Grid>
+					<Grid.ColumnDefinitions>
+						<ColumnDefinition Width="*" />
+						<ColumnDefinition Width="Auto" />
+					</Grid.ColumnDefinitions>
+					<TextBox Text="{Binding OutputPath, UpdateSourceTrigger=PropertyChanged}" />
+					<TextBlock Style="{StaticResource Watermark}" Text="{Binding OutputHint}"
+							   Visibility="{Binding OutputPath, Converter={StaticResource EmptyToVisible}}" />
+					<Button Grid.Column="1" Content="…" Width="40" Margin="6,0,0,0" Command="{Binding BrowseOutputCommand}" />
+				</Grid>
+
+				<CheckBox Content="Задати формати явно" IsChecked="{Binding FormatsExplicit}" Margin="0,12,0,0" />
+				<TextBlock Style="{StaticResource HintText}" Text="{Binding FormatsHint}" />
+				<WrapPanel Margin="0,4,0,0" IsEnabled="{Binding FormatsExplicit}">
+					<ItemsControl ItemsSource="{Binding Formats}">
+						<ItemsControl.ItemsPanel>
+							<ItemsPanelTemplate>
+								<WrapPanel />
+							</ItemsPanelTemplate>
+						</ItemsControl.ItemsPanel>
+						<ItemsControl.ItemTemplate>
+							<DataTemplate>
+								<CheckBox Content="{Binding Name}" ToolTip="{Binding Description}" IsChecked="{Binding IsChecked}" Margin="0,2,14,0" />
+							</DataTemplate>
+						</ItemsControl.ItemTemplate>
+					</ItemsControl>
+				</WrapPanel>
+				<TextBlock Style="{StaticResource HintText}" Text="Json потрібен, щоб запуск лишився у вкладці «Результати» після перезапуску програми." />
+
+				<TextBlock Style="{StaticResource SectionHeader}" Text="Режими" />
+				<TextBlock Style="{StaticResource HintText}" Text="Кожен перемикач має три стани: з рискою — як у конфігурації (значення праворуч), з позначкою — увімкнути, порожній — вимкнути. Клацання перемикає по колу." />
+				<ItemsControl ItemsSource="{Binding Flags}" Margin="0,6,0,0">
+					<ItemsControl.ItemTemplate>
+						<DataTemplate>
+							<StackPanel Orientation="Horizontal" Margin="0,2,0,0" ToolTip="{Binding ToolTip}">
+								<CheckBox IsThreeState="True" IsChecked="{Binding Value}" Content="{Binding Label}" AutomationProperties.AutomationId="{Binding Key}" />
+								<TextBlock Text="{Binding Hint}" Style="{StaticResource HintText}" Margin="10,0,0,0" VerticalAlignment="Center" />
+							</StackPanel>
+						</DataTemplate>
+					</ItemsControl.ItemTemplate>
+				</ItemsControl>
+				<CheckBox Content="Докладний журнал (-Verbose)" IsChecked="{Binding Verbose}" Margin="0,6,0,0" />
+
+				<Expander Margin="0,16,0,0">
+					<Expander.Header>
+						<TextBlock Text="Небезпечні режими" Foreground="{DynamicResource StatusErrorBrush}" FontWeight="SemiBold" />
+					</Expander.Header>
+					<StackPanel Margin="4,6,0,0">
+						<TextBlock Style="{StaticResource HintText}"
+								   Text="Лише для діагностики. Кожен увімкнений режим записується в журнал і в кожну рекомендацію; перед запуском буде підтвердження." />
+						<ItemsControl ItemsSource="{Binding UnsafeFlags}" Margin="0,4,0,0">
+							<ItemsControl.ItemTemplate>
+								<DataTemplate>
+									<CheckBox IsChecked="{Binding Value}" Content="{Binding Label}" ToolTip="{Binding ToolTip}" Margin="0,3,0,0" />
+								</DataTemplate>
+							</ItemsControl.ItemTemplate>
+						</ItemsControl>
+					</StackPanel>
+				</Expander>
+
+				<Expander Header="Командний рядок" Margin="0,8,0,0" IsExpanded="True">
+					<StackPanel Margin="4,6,0,0">
+						<TextBlock Style="{StaticResource HintText}" Margin="0,0,0,4" Text="Сесія PowerShell 7 з імпортованим модулем:" />
+						<TextBox Text="{Binding PowerShellCommand, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap"
+								 FontFamily="{StaticResource MonoFont}" FontSize="12" />
+						<Button Content="Копіювати" Command="{Binding CopyPowerShellCommand}" HorizontalAlignment="Left" Margin="0,6,0,0" />
+						<StackPanel Visibility="{Binding PwshCommand, Converter={StaticResource EmptyToVisible}, ConverterParameter=Invert}">
+							<TextBlock Style="{StaticResource HintText}" Margin="0,12,0,4" Text="За розкладом (SQL Agent CmdExec, Rundeck, Планувальник завдань):" />
+							<TextBox Text="{Binding PwshCommand, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap"
+									 FontFamily="{StaticResource MonoFont}" FontSize="12" />
+							<Button Content="Копіювати" Command="{Binding CopyPwshCommand}" HorizontalAlignment="Left" Margin="0,6,0,0" />
+						</StackPanel>
+					</StackPanel>
+				</Expander>
+
+				<Button Content="Скинути перевизначення" Command="{Binding ResetOverridesCommand}" HorizontalAlignment="Left" Margin="0,18,0,0"
+						ToolTip="Очистити всі поля форми, крім файлу конфігурації" />
+			</StackPanel>
+		</ScrollViewer>
+
+		<GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Center" VerticalAlignment="Stretch" Background="Transparent" />
+
+		<!-- Виконання і журнал. -->
+		<Grid Grid.Column="2" Margin="10,0,0,0">
+			<Grid.RowDefinitions>
+				<RowDefinition Height="Auto" />
+				<RowDefinition Height="Auto" />
+				<RowDefinition Height="*" />
+				<RowDefinition Height="Auto" />
+			</Grid.RowDefinitions>
+
+			<Border Style="{StaticResource Card}" Margin="0,4,0,0">
+				<DockPanel>
+					<StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+						<Button x:Name="RunButton" Content="▶  Запустити аналіз" Command="{Binding Run.RunCommand}" Padding="18,7" FontWeight="SemiBold"
+								Style="{DynamicResource AccentButtonStyle}" />
+						<Button x:Name="StopButton" Content="■  Зупинити" Command="{Binding Run.StopCommand}" Margin="8,0,0,0" Padding="14,7" />
+					</StackPanel>
+					<Button DockPanel.Dock="Right" Content="Відкрити результати →" Command="{Binding Run.OpenResultsCommand}" Padding="14,7"
+							Visibility="{Binding Run.HasResults, Converter={StaticResource BoolToVisibility}}" />
+					<StackPanel Margin="18,0,12,0" VerticalAlignment="Center">
+						<StackPanel Orientation="Horizontal">
+							<Ellipse Width="10" Height="10" Margin="0,0,8,0" VerticalAlignment="Center"
+									 Fill="{Binding Run.StatusSeverity, Converter={StaticResource StatusBrush}}" />
+							<TextBlock Text="{Binding Run.StatusText}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+									   ToolTip="{Binding Run.StatusText}" />
+							<TextBlock Text="{Binding Run.ElapsedText}" Margin="12,0,0,0" Opacity="0.7" />
+						</StackPanel>
+						<ProgressBar IsIndeterminate="{Binding Run.IsRunning}" Height="3" Margin="0,8,0,0"
+									 Visibility="{Binding Run.IsRunning, Converter={StaticResource BoolToVisibility}}" />
+					</StackPanel>
+				</DockPanel>
+			</Border>
+
+			<views:LogView Grid.Row="1" Grid.RowSpan="3" Margin="0,10,0,0" DataContext="{Binding Log}" />
+		</Grid>
+	</Grid>
+</UserControl>

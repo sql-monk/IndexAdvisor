@@ -598,6 +598,12 @@ function Invoke-IaCliServerRun {
 		foreach ($module in $modules) {
 			$state = $moduleState[$module]
 			$analysis = $null
+			# Без жодної таблиці в контексті (бази не зібрано чи пропущено через права) модель не викликається: аналізувати нічого.
+			if (@($state.context.includedObjectKeys | Where-Object { $_ }).Count -eq 0 -and -not ($module -eq 'Partitioning' -and $partitionDraftEntries.Count -gt 0)) {
+				$state.completed = $true
+				Add-IaCliRunWarning -Run $run -Message "Аналіз моделлю ($module) пропущено: у зібраних даних немає жодної таблиці (бази не зібрано або пропущено — див. попередження вище)."
+				continue
+			}
 			try {
 				$analysis = Invoke-IaAnalysisLoop -Prompt $state.prompt -Snapshot $snapshot -ProviderConfig $provider -Tools $tools -MaskingMap $map -Config $cfg
 			}
