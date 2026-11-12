@@ -6,9 +6,16 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Windows.Input;
 using IndexAdvisor.Gui.Core;
+using IndexAdvisor.Gui.Help;
 using IndexAdvisor.Gui.Infrastructure;
 
 namespace IndexAdvisor.Gui.ViewModels.ConfigForm;
+
+/// <summary>Варіант для поля з вибором (модель, endpoint, провайдер): значення й пояснення.</summary>
+public sealed record SuggestionItem(string Value, string Note)
+{
+	public override string ToString() => Value;
+}
 
 /// <summary>
 /// Вузол форми налаштувань, побудований зі схеми. Значення завантажуються з розібраного YAML (JSON),
@@ -18,6 +25,7 @@ namespace IndexAdvisor.Gui.ViewModels.ConfigForm;
 public abstract class SettingNodeVm : ObservableObject
 {
 	private readonly Action _changed;
+	private HelpInfo? _help;
 
 	protected SettingNodeVm(SchemaNode node, string path, Action changed)
 	{
@@ -33,6 +41,9 @@ public abstract class SettingNodeVm : ObservableObject
 	public string Key => Node.Name;
 
 	public string Label => string.IsNullOrWhiteSpace(Node.Description) ? Node.Name : Node.Description;
+
+	/// <summary>Довідка «?»: що робить параметр, типове значення, межі.</summary>
+	public HelpInfo Help => _help ??= HelpCatalog.ForSetting(this);
 
 	protected bool IsLoading { get; set; }
 
@@ -356,6 +367,33 @@ public sealed class TextSettingVm : ScalarSettingVm
 
 	public bool IsNumeric => Node.Type is SchemaType.Int or SchemaType.Number;
 
+	/// <summary>Готові значення для вибору (моделі, endpoint, провайдери); можна ввести й своє.</summary>
+	public ObservableCollection<SuggestionItem> Suggestions { get; } = [];
+
+	public bool HasSuggestions => Suggestions.Count > 0;
+
+	public void SetSuggestions(IEnumerable<SuggestionItem> items)
+	{
+		var list = items.ToList();
+		if (list.Count == Suggestions.Count && list.SequenceEqual(Suggestions))
+		{
+			return;
+		}
+		var hadSuggestions = HasSuggestions;
+		Suggestions.Clear();
+		foreach (var item in list)
+		{
+			Suggestions.Add(item);
+		}
+		if (hadSuggestions != HasSuggestions)
+		{
+			OnPropertyChanged(nameof(HasSuggestions));
+		}
+	}
+
+	/// <summary>Числове значення поля (null — порожньо або не число).</summary>
+	public double? Number => double.TryParse(_text.Trim().Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out var value) ? value : null;
+
 	protected override void ApplyDefault() => SetProperty(ref _text, Node.Default is null ? string.Empty : FormatScalar(Node.Default), nameof(Text));
 
 	protected override void SetFromJson(JsonNode? value) => SetProperty(ref _text, JsonText(value), nameof(Text));
@@ -606,6 +644,9 @@ public sealed class CollectionItemVm : ObservableObject
 
 	public IReadOnlyList<SettingNodeVm> Children => Group.Children;
 
+	/// <summary>Поле елемента за ключем схеми (type, model…).</summary>
+	public T? Field<T>(string key) where T : SettingNodeVm => Group.Children.FirstOrDefault(child => child.Key == key) as T;
+
 	public ICommand RemoveCommand { get; }
 
 	public void LoadKey(string key) => SetProperty(ref _key, key, nameof(Key));
@@ -712,12 +753,54 @@ public sealed class ListSettingVm : CollectionSettingVm
 /// <summary>Мапа об'єктів за іменами (llm.providers).</summary>
 public sealed class MapSettingVm : CollectionSettingVm
 {
+	private IReadOnlyList<LlmProviderPreset> _presets = [];
+
 	public MapSettingVm(SchemaNode node, string path, Action changed)
 		: base(node, node.Values!, path, changed)
 	{
+		AddPresetCommand = new RelayCommand(parameter =>
+		{
+			if (parameter is LlmProviderPreset preset)
+			{
+				AddPreset(preset);
+			}
+		});
 	}
 
 	public override bool HasKeys => true;
+
+	/// <summary>Готові елементи для «Додати готовий…» (провайдери LLM); порожньо — лише «Додати».</summary>
+	public IReadOnlyList<LlmProviderPreset> Presets
+	{
+		get => _presets;
+		set
+		{
+			if (SetProperty(ref _presets, value))
+			{
+				OnPropertyChanged(nameof(HasPresets));
+			}
+		}
+	}
+
+	public bool HasPresets => _presets.Count > 0;
+
+	public ICommand AddPresetCommand { get; }
+
+	public IEnumerable<string> Keys => Items.Select(item => item.Key.Trim()).Where(key => key.Length > 0);
+
+	public CollectionItemVm? FindItem(string? key) =>
+		string.IsNullOrWhiteSpace(key) ? null : Items.FirstOrDefault(item => string.Equals(item.Key.Trim(), key.Trim(), StringComparison.Ordinal));
+
+	/// <summary>Додати провайдера з каталогу з типовою моделлю; ім'я — вільне (anthropic, anthropic-2…), якщо не задано.</summary>
+	public CollectionItemVm AddPreset(LlmProviderPreset preset, string? key = null)
+	{
+		var item = NewItem(LlmCatalog.UniqueKey(string.IsNullOrWhiteSpace(key) ? preset.Key : key.Trim(), Keys));
+		LlmPresetApplier.ApplyPreset(item, preset);
+		Items.Add(item);
+		IsSet = true;
+		NotifyChanged();
+		return item;
+	}
 
 	public override void Load(JsonNode? value, bool present, List<string> unknownKeys)
 	{

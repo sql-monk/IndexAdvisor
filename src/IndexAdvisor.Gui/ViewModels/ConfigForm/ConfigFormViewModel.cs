@@ -56,6 +56,7 @@ public sealed class ConfigFormViewModel : ObservableObject
 	};
 
 	private GroupSettingVm? _root;
+	private LlmFormBinder? _llm;
 	private SettingSectionVm? _selectedSection;
 	private string? _searchText;
 	private IReadOnlyList<ScalarSettingVm> _searchResults = [];
@@ -139,12 +140,14 @@ public sealed class ConfigFormViewModel : ObservableObject
 		}
 		SelectedSection = Sections.FirstOrDefault();
 		SchemaError = null;
+		_llm = LlmFormBinder.Attach(this);
 		OnPropertyChanged(nameof(IsAvailable));
 	}
 
 	public void SetSchemaError(string message)
 	{
 		_root = null;
+		_llm = null;
 		Sections.Clear();
 		SchemaError = message;
 		OnPropertyChanged(nameof(IsAvailable));
@@ -158,7 +161,15 @@ public sealed class ConfigFormViewModel : ObservableObject
 			return;
 		}
 		var unknown = new List<string>();
-		_root.Load(values, values is not null, unknown);
+		_llm?.Suspend();
+		try
+		{
+			_root.Load(values, values is not null, unknown);
+		}
+		finally
+		{
+			_llm?.Resume();
+		}
 		_unknownKeys = unknown;
 		StatusText = unknown.Count > 0
 			? "Ключі, яких немає в схемі, не показано й не буде записано з форми: " + string.Join(", ", unknown)
@@ -185,6 +196,7 @@ public sealed class ConfigFormViewModel : ObservableObject
 			errors = ["Схема конфігурації недоступна."];
 			return false;
 		}
+		_llm?.AddChosenPresets();
 		_root.TryBuild(out var value, problems);
 		errors = problems;
 		if (problems.Count > 0)
