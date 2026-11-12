@@ -9,9 +9,24 @@
 	"properties": {
 		"recommendations": { "type": "array", "items": { "$ref": "#/$defs/draft" } },
 		"toolRequests": { "type": "array", "items": { "$ref": "#/$defs/toolRequest" } },
+		"draftDecisions": {
+			"type": "array",
+			"description": "Рішення щодо чернеток детермінованого модуля (drafts[].draftId у контексті): Confirm — прийняти чернетку без змін (скрипти програма бере з чернетки), Reject — відхилити з причиною. Змінену чернетку відхиляй і повертай власною рекомендацією в recommendations.",
+			"items": { "$ref": "#/$defs/draftDecision" }
+		},
 		"notes": { "type": ["string", "null"] }
 	},
 	"$defs": {
+		"draftDecision": {
+			"type": "object",
+			"required": ["draftId", "decision"],
+			"additionalProperties": false,
+			"properties": {
+				"draftId": { "type": "string" },
+				"decision": { "enum": ["Confirm", "Reject"] },
+				"reason": { "type": ["string", "null"] }
+			}
+		},
 		"target": {
 			"type": "object",
 			"required": ["server", "database", "schema", "table"],

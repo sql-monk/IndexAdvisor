@@ -250,5 +250,26 @@ Describe 'Test-IaRecommendation' {
 			$check.message | Should -Match $pattern
 			$validation.status | Should -Be 'Failed'
 		}
+
+		It 'ідемпотентна обгортка IF [NOT] EXISTS із системних каталогів розгортається: усі перевірки проходять' {
+			$execute = "IF NOT EXISTS (SELECT 1 FROM [sys].[indexes] WHERE [object_id] = OBJECT_ID(N'[dbo].[Orders]') AND [name] = N'IX_New')`n" +
+				"BEGIN`n`tCREATE NONCLUSTERED INDEX [IX_New] ON [dbo].[Orders] ([Amount]) WITH (ONLINE = ON);`nEND;"
+			$rollback = "IF INDEXPROPERTY(OBJECT_ID(N'[dbo].[Orders]'), N'IX_New', 'IndexID') IS NOT NULL`n`tDROP INDEX [IX_New] ON [dbo].[Orders];"
+			$validation = Test-Create -Execute $execute -Rollback $rollback -Snapshot $snapshot -Config $config
+			$validation.status | Should -Be 'Passed' -Because (($validation.checks | ForEach-Object { "$($_.id)=$($_.status): $($_.message)" }) -join ' | ')
+			(Get-TestCheck $validation 'NotDuplicate').status | Should -Be 'Passed'
+			(Get-TestCheck $validation 'SafeScript').status | Should -Be 'Passed'
+		}
+
+		It 'обгортка IF <name> не розгортається — Failed' -ForEach @(
+			@{ name = 'з умовою по користувацькій таблиці'; execute = "IF NOT EXISTS (SELECT 1 FROM [dbo].[Orders] WHERE [Amount] > 0) CREATE NONCLUSTERED INDEX [IX_New] ON [dbo].[Orders] ([Amount]);" }
+			@{ name = 'з ELSE'; execute = "IF OBJECT_ID(N'[dbo].[Orders]') IS NULL CREATE NONCLUSTERED INDEX [IX_New] ON [dbo].[Orders] ([Amount]); ELSE DROP INDEX [IX_Status] ON [dbo].[Orders];" }
+			@{ name = 'з EXEC в умові'; execute = "IF NOT EXISTS (SELECT 1 FROM OPENQUERY([lnk], 'SELECT 1')) CREATE NONCLUSTERED INDEX [IX_New] ON [dbo].[Orders] ([Amount]);" }
+		) {
+			$validation = Test-Create -Execute $execute -Snapshot $snapshot -Config $config
+			$check = Get-TestCheck $validation 'SafeScript'
+			$check.status | Should -Be 'Failed'
+			$check.message | Should -Match 'IfStatement'
+		}
 	}
 }

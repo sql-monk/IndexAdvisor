@@ -141,7 +141,7 @@ Describe 'Invoke-IaLlmChat: формати запитів і розбір від
 		$response.finishReason | Should -Be 'stop'
 		$response.llmCallId | Should -Not -BeNullOrEmpty
 		$response.createdAtUtc | Should -Match '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$'
-		@($response.Keys) | Should -Be @('llmCallId', 'provider', 'model', 'purpose', 'text', 'inputTokens', 'outputTokens', 'costUsd', 'durationMs',
+		@($response.Keys) | Should -Be @('llmCallId', 'provider', 'model', 'purpose', 'text', 'inputTokens', 'outputTokens', 'cacheWriteTokens', 'cacheReadTokens', 'costUsd', 'durationMs',
 			'finishReason', 'createdAtUtc', 'promptTemplateId', 'promptTemplateVersion', 'success', 'error')
 	}
 
@@ -176,13 +176,57 @@ Describe 'Invoke-IaLlmChat: формати запитів і розбір від
 			$body = ConvertFrom-Json -InputObject $Body -AsHashtable
 			"$Uri" -eq 'https://api.anthropic.com/v1/messages' -and
 			$Headers['x-api-key'] -eq 'sk-ant-test-0123456789abcdef' -and $Headers['anthropic-version'] -eq '2023-06-01' -and
-			$body.model -eq 'claude-test' -and $body.max_tokens -eq 1000 -and $body.system -like 'Системні правила*' -and
+			$body.model -eq 'claude-test' -and $body.max_tokens -eq 1000 -and $body.system[0].text -like 'Системні правила*' -and
+			$body.system[0].cache_control.type -eq 'ephemeral' -and $body.cache_control.type -eq 'ephemeral' -and
 			$body.messages.Count -eq 1 -and $body.messages[0].role -eq 'user'
 		}
 		$response.text | Should -Be '{"recommendations":[],"toolRequests":[]}'
 		$response.inputTokens | Should -Be 321
 		$response.outputTokens | Should -Be 45
 		$response.finishReason | Should -Be 'end_turn'
+	}
+
+	It 'Anthropic: кеш промптів — повний розмір промпту з usage і вартість запису та читання кешу' {
+		Mock -ModuleName IndexAdvisor Invoke-RestMethod {
+			[pscustomobject]@{
+				id = 'msg_cache'; type = 'message'; role = 'assistant'; stop_reason = 'end_turn'
+				content = @([pscustomobject]@{ type = 'text'; text = '{"recommendations":[],"toolRequests":[]}' })
+				usage = [pscustomobject]@{ input_tokens = 1000; cache_creation_input_tokens = 200000; cache_read_input_tokens = 800000; output_tokens = 100000 }
+			}
+		}
+		$config = New-IaLlmTestConfig
+		$config.llm.providers.claude.inputPricePer1MTokensUsd = 4
+		$config.llm.providers.claude.outputPricePer1MTokensUsd = 20
+		$config.llm.providers.claude.cacheReadPricePer1MTokensUsd = 0.2
+		$response = InModuleScope IndexAdvisor -Parameters @{ Config = $config; Messages = $script:Messages } {
+			param($Config, $Messages)
+			Invoke-IaLlmChat -ProviderConfig (Get-IaLlmProviderConfig -Name 'claude' -Config $Config) -Messages $Messages -MaxTokens 1000 -JsonResponse -Config $Config
+		}
+		$response.inputTokens | Should -Be 1001000
+		$response.cacheWriteTokens | Should -Be 200000
+		$response.cacheReadTokens | Should -Be 800000
+		# 1000 × 4 + 200000 × 5 (1,25 × 4) + 800000 × 0,2 + 100000 × 20 — за 1 млн токенів.
+		$response.costUsd | Should -Be ([decimal]3.164)
+	}
+
+	It 'Anthropic: promptCaching = false — system рядком, без cache_control' {
+		Mock -ModuleName IndexAdvisor Invoke-RestMethod {
+			[pscustomobject]@{
+				id = 'msg_nocache'; type = 'message'; role = 'assistant'; stop_reason = 'end_turn'
+				content = @([pscustomobject]@{ type = 'text'; text = '{"recommendations":[],"toolRequests":[]}' })
+				usage = [pscustomobject]@{ input_tokens = 10; output_tokens = 5 }
+			}
+		}
+		$config = New-IaLlmTestConfig
+		$config.llm.providers.claude.promptCaching = $false
+		$null = InModuleScope IndexAdvisor -Parameters @{ Config = $config; Messages = $script:Messages } {
+			param($Config, $Messages)
+			Invoke-IaLlmChat -ProviderConfig (Get-IaLlmProviderConfig -Name 'claude' -Config $Config) -Messages $Messages -MaxTokens 1000 -Config $Config
+		}
+		Should -Invoke -ModuleName IndexAdvisor Invoke-RestMethod -Times 1 -Exactly -ParameterFilter {
+			$body = ConvertFrom-Json -InputObject $Body -AsHashtable
+			$body.system -is [string] -and -not $body.ContainsKey('cache_control')
+		}
 	}
 
 	It 'Cohere: /v2/chat, Bearer, response_format; текст з message.content' {

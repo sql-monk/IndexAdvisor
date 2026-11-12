@@ -209,12 +209,22 @@ function New-IaLlmHttpRequest {
 			if ($JsonResponse) {
 				$system = ($system + "`n`nВідповідай лише одним JSON-об'єктом, без Markdown і без тексту поза JSON.").Trim()
 			}
+			# Кешування промптів: явна точка кешу на статичному системному промпті (спільний для запусків і серверів у межах TTL)
+			# і автоматичне кешування діалогу на рівні запиту — у циклі дозапитів великий контекст читається з кешу.
+			$caching = $null -eq $ProviderConfig['promptCaching'] -or [bool]$ProviderConfig['promptCaching']
 			$body['model'] = $model
 			$body['max_tokens'] = $MaxTokens
-			if ($system) {
+			if ($system -and $caching) {
+				# Пряме присвоєння масиву: вираз if розгорнув би масив з одного блоку в об'єкт, а API чекає масив блоків.
+				$body['system'] = @([ordered]@{ type = 'text'; text = $system; cache_control = [ordered]@{ type = 'ephemeral' } })
+			}
+			elseif ($system) {
 				$body['system'] = $system
 			}
 			$body['messages'] = @($chatMessages | Where-Object { $_.role -ne 'system' })
+			if ($caching) {
+				$body['cache_control'] = [ordered]@{ type = 'ephemeral' }
+			}
 			break
 		}
 		'Cohere' {
@@ -256,6 +266,8 @@ function ConvertFrom-IaLlmHttpResponse {
 	$finishReason = $null
 	$inputTokens = $null
 	$outputTokens = $null
+	$cacheWrite = 0
+	$cacheRead = 0
 	switch ($Type) {
 		'Anthropic' {
 			$content = Get-IaLlmValue -InputObject $Response -Name 'content'
@@ -265,8 +277,12 @@ function ConvertFrom-IaLlmHttpResponse {
 			}
 			$finishReason = Get-IaLlmValue -InputObject $Response -Name 'stop_reason'
 			$usage = Get-IaLlmValue -InputObject $Response -Name 'usage'
-			$inputTokens = Get-IaLlmValue -InputObject $usage -Name 'input_tokens'
 			$outputTokens = Get-IaLlmValue -InputObject $usage -Name 'output_tokens'
+			# input_tokens — лише некешований залишок; повний розмір промпту = input + запис у кеш + читання з кешу.
+			$uncached = Get-IaLlmValue -InputObject $usage -Name 'input_tokens'
+			$cacheWrite = [long]((Get-IaLlmValue -InputObject $usage -Name 'cache_creation_input_tokens') ?? 0)
+			$cacheRead = [long]((Get-IaLlmValue -InputObject $usage -Name 'cache_read_input_tokens') ?? 0)
+			$inputTokens = if ($null -ne $uncached) { [long]$uncached + $cacheWrite + $cacheRead } else { $null }
 			break
 		}
 		'Cohere' {
@@ -306,6 +322,8 @@ function ConvertFrom-IaLlmHttpResponse {
 			$usage = Get-IaLlmValue -InputObject $Response -Name 'usage'
 			$inputTokens = Get-IaLlmValue -InputObject $usage -Name 'prompt_tokens'
 			$outputTokens = Get-IaLlmValue -InputObject $usage -Name 'completion_tokens'
+			# Автоматичне кешування OpenAI: cached_tokens входять у prompt_tokens і оплачуються зі знижкою.
+			$cacheRead = [long]((Get-IaLlmValue -InputObject (Get-IaLlmValue -InputObject $usage -Name 'prompt_tokens_details') -Name 'cached_tokens') ?? 0)
 		}
 	}
 	if ([string]::IsNullOrEmpty($text)) {
@@ -316,6 +334,8 @@ function ConvertFrom-IaLlmHttpResponse {
 		finishReason = $(if ($null -ne $finishReason) { [string]$finishReason } else { $null })
 		inputTokens = $(if ($null -ne $inputTokens) { [long]$inputTokens } else { $null })
 		outputTokens = $(if ($null -ne $outputTokens) { [long]$outputTokens } else { $null })
+		cacheWriteTokens = [long]$(if ($cacheWrite) { $cacheWrite } else { 0 })
+		cacheReadTokens = [long]$(if ($cacheRead) { $cacheRead } else { 0 })
 	}
 }
 
@@ -425,6 +445,12 @@ function Get-IaLlmHttpFailure {
 	}
 }
 
+function Test-IaLlmTruncatedFinish {
+	<# $true, якщо відповідь обрізано лімітом вихідних токенів: max_tokens (Anthropic), length (OpenAI, Azure OpenAI, сумісні), MAX_TOKENS (Cohere). #>
+	param([AllowNull()][AllowEmptyString()][string]$FinishReason)
+	return ([string]$FinishReason) -in @('max_tokens', 'length', 'MAX_TOKENS')
+}
+
 function New-IaLlmResponseObject {
 	<# Внутрішня: порожній LlmResponse (CONTRACTS.md, розділ 5.5). #>
 	param(
@@ -439,6 +465,8 @@ function New-IaLlmResponseObject {
 		text = $null
 		inputTokens = 0
 		outputTokens = 0
+		cacheWriteTokens = 0
+		cacheReadTokens = 0
 		costUsd = [decimal]0
 		durationMs = 0
 		finishReason = $null
@@ -470,7 +498,8 @@ function Invoke-IaLlmChat {
 		$PSCmdlet.ThrowTerminatingError((New-IaLlmErrorRecord -ErrorId 'IaConfigInvalid' -Category InvalidData -Message "Тип провайдера '$(Get-IaLlmValue -InputObject $ProviderConfig -Name 'type')' не підтримується."))
 	}
 	$settings = [ordered]@{ type = $type }
-	foreach ($name in @('name', 'model', 'endpoint', 'apiKeyRef', 'apiVersion', 'maxTokensPerRequest', 'timeoutSeconds', 'retryCount', 'inputPricePer1MTokensUsd', 'outputPricePer1MTokensUsd', 'dailyBudgetUsd', 'monthlyBudgetUsd')) {
+	foreach ($name in @('name', 'model', 'endpoint', 'apiKeyRef', 'apiVersion', 'maxTokensPerRequest', 'timeoutSeconds', 'retryCount', 'inputPricePer1MTokensUsd', 'outputPricePer1MTokensUsd',
+			'cacheWritePricePer1MTokensUsd', 'cacheReadPricePer1MTokensUsd', 'promptCaching', 'dailyBudgetUsd', 'monthlyBudgetUsd')) {
 		$settings[$name] = Get-IaLlmSetting -ProviderConfig $ProviderConfig -Name $name
 	}
 	$limit = [int]$settings['maxTokensPerRequest']
@@ -539,11 +568,16 @@ function Invoke-IaLlmChat {
 		if ($null -eq $outputTokens) {
 			$outputTokens = Measure-IaTokens -Text $parsed.text
 		}
+		$cacheWrite = [long]$parsed.cacheWriteTokens
+		$cacheRead = [long]$parsed.cacheReadTokens
 		$result['text'] = $parsed.text
 		$result['finishReason'] = $parsed.finishReason
 		$result['inputTokens'] = [long]$inputTokens
 		$result['outputTokens'] = [long]$outputTokens
-		$result['costUsd'] = Get-IaLlmCost -ProviderConfig $settings -InputTokens $inputTokens -OutputTokens $outputTokens
+		$result['cacheWriteTokens'] = $cacheWrite
+		$result['cacheReadTokens'] = $cacheRead
+		$uncached = [Math]::Max([long]0, [long]$inputTokens - $cacheWrite - $cacheRead)
+		$result['costUsd'] = Get-IaLlmCost -ProviderConfig $settings -InputTokens $uncached -OutputTokens $outputTokens -CacheWriteTokens $cacheWrite -CacheReadTokens $cacheRead
 		$result['success'] = $true
 		try {
 			Add-IaLlmLedgerEntry -Config $Config -Entry ([ordered]@{
@@ -569,6 +603,8 @@ function Invoke-IaLlmChat {
 			attempts = $attempt
 			inputTokens = $result['inputTokens']
 			outputTokens = $result['outputTokens']
+			cacheWriteTokens = $result['cacheWriteTokens']
+			cacheReadTokens = $result['cacheReadTokens']
 			costUsd = $result['costUsd']
 			durationMs = $result['durationMs']
 			finishReason = $result['finishReason']

@@ -321,6 +321,67 @@ function Get-IaCliDatasetWarnings {
 		})
 }
 
+function ConvertTo-IaCliCompactDraft {
+	<# Чернетка модуля партиціонування для промпту: з draftId і без SQL-скриптів (executeScript, rollbackScript, functionScript, schemeScript).
+	   Модель не повторює чернетки, а повертає рішення draftDecisions; за Confirm програма бере скрипти з самої чернетки. #>
+	param([Parameter(Mandatory)][System.Collections.IDictionary]$Draft, [Parameter(Mandatory)][string]$DraftId)
+	$compact = [ordered]@{ draftId = $DraftId }
+	foreach ($key in $Draft.Keys) {
+		if ($key -in @('executeScript', 'rollbackScript')) {
+			continue
+		}
+		if ($key -eq 'partitioning' -and $Draft[$key] -is [System.Collections.IDictionary]) {
+			$partitioning = [ordered]@{}
+			foreach ($name in $Draft[$key].Keys) {
+				if ($name -notin @('functionScript', 'schemeScript')) {
+					$partitioning[$name] = $Draft[$key][$name]
+				}
+			}
+			$compact[$key] = $partitioning
+			continue
+		}
+		$compact[$key] = $Draft[$key]
+	}
+	return $compact
+}
+
+function Merge-IaCliDraftDecisions {
+	<# Рекомендації з чернеток модуля за рішеннями моделі: Reject — чернетку відкинуто (інформаційне попередження з причиною);
+	   Confirm — рекомендація правил з позначкою підтвердження; без рішення — рекомендація правил з попередженням, що модель її не оцінила. #>
+	param(
+		[Parameter(Mandatory)][AllowEmptyCollection()][object[]]$DraftEntries,
+		[AllowEmptyCollection()][object[]]$Decisions = @(),
+		[Parameter(Mandatory)][System.Collections.IDictionary]$Run,
+		[Parameter(Mandatory)][ValidateSet('Indexes', 'Partitioning')][string]$Module
+	)
+	$byId = @{}
+	foreach ($decision in @($Decisions | Where-Object { $null -ne $_ })) {
+		$byId[[string]$decision.draftId] = $decision
+	}
+	$knownIds = @($DraftEntries | ForEach-Object { [string]$_.id })
+	foreach ($id in @($byId.Keys | Where-Object { $_ -notin $knownIds })) {
+		Add-IaCliRunWarning -Run $Run -Informational -Message "Модель повернула рішення для невідомої чернетки '$id'; його проігноровано."
+	}
+	foreach ($entry in $DraftEntries) {
+		$decision = $byId[[string]$entry.id]
+		if ($decision -and [string]$decision.decision -eq 'Reject') {
+			$reason = if ($decision.reason) { [string]$decision.reason } else { 'причину не вказано' }
+			Add-IaCliRunWarning -Run $Run -Informational -Message "Модель відхилила чернетку $($entry.id) «$($entry.draft.title)»: $reason"
+			continue
+		}
+		$rec = New-IaRecommendation -Draft $entry.draft -RunId $Run.runId -Module $Module -Source Rules
+		$rec.warnings = @(
+			if ($decision) {
+				"Чернетку детермінованого модуля підтверджено моделлю$(if ($decision.reason) { ": $($decision.reason)" } else { '.' })"
+			}
+			else {
+				'Модель не оцінила цю чернетку детермінованого модуля; рекомендацію сформовано без аналізу моделлю.'
+			}
+		)
+		$rec
+	}
+}
+
 function Invoke-IaCliServerRun {
 	<# Один запуск для одного сервера (CONTRACTS.md, розділ 4, крок 4). Повертає RunResult; винятки перехоплюються. #>
 	[CmdletBinding()]
@@ -482,6 +543,7 @@ function Invoke-IaCliServerRun {
 			$partitionDrafts = @($partition.drafts | Where-Object { $null -ne $_ })
 		}
 		$run.findings = @($findingsByModule.Indexes) + @($findingsByModule.Partitioning)
+		$partitionDraftEntries = @(for ($i = 0; $i -lt $partitionDrafts.Count; $i++) { @{ id = ('D{0:00}' -f ($i + 1)); draft = $partitionDrafts[$i] } })
 
 		# 4.5 Провайдер (перевірено до циклу), інструменти, мапа маскування.
 		$provider = $Context.provider
@@ -491,10 +553,18 @@ function Invoke-IaCliServerRun {
 		# 4.6 Контекст і промпт для кожного модуля.
 		$moduleState = [ordered]@{}
 		foreach ($module in $modules) {
-			$llmContext = New-IaLlmContext -Snapshot $snapshot -Findings $findingsByModule[$module] -Module $module -ProviderConfig $provider -Config $cfg
+			# Чернетки модуля партиціонування — компактно (без скриптів) і в межах бюджету контексту.
+			$compactDrafts = @()
+			$reservedTokens = 0
+			if ($module -eq 'Partitioning' -and $partitionDraftEntries.Count -gt 0) {
+				$compactDrafts = @(foreach ($entry in $partitionDraftEntries) { ConvertTo-IaCliCompactDraft -Draft $entry.draft -DraftId $entry.id })
+				$reservedTokens = Measure-IaTokens -Text (ConvertTo-IaLlmJson -Value $compactDrafts)
+			}
+			$llmContext = New-IaLlmContext -Snapshot $snapshot -Findings $findingsByModule[$module] -Module $module -ProviderConfig $provider -Config $cfg `
+				-ReservedTokens $reservedTokens
 			$payload = $llmContext.payload
 			if ($module -eq 'Partitioning' -and $payload -is [System.Collections.IDictionary]) {
-				$payload['drafts'] = @($partitionDrafts)
+				$payload['drafts'] = $compactDrafts
 			}
 			$maskedPayload = ConvertTo-IaMaskedObject -InputObject $payload -Map $map -Config $cfg
 			$templateName = if ($module -eq 'Partitioning') { 'partition-analysis' } else { 'index-analysis' }
@@ -583,6 +653,10 @@ function Invoke-IaCliServerRun {
 					New-IaRecommendation -Draft $draft -RunId $run.runId -Module $module -Source Llm -Llm $llmInfo
 				}
 				$state.recommendations = @($moduleRecs)
+				if ($state.completed -and $module -eq 'Partitioning' -and $partitionDraftEntries.Count -gt 0) {
+					$state.recommendations = @($moduleRecs) + @(Merge-IaCliDraftDecisions -DraftEntries $partitionDraftEntries `
+							-Decisions @($analysis.draftDecisions) -Run $run -Module Partitioning)
+				}
 			}
 			if (-not $state.completed -and $module -eq 'Partitioning' -and $partitionDrafts.Count -gt 0) {
 				# Модель не дала відповіді: чернетки модуля партиціонування показуються як рекомендації правил з попередженням.

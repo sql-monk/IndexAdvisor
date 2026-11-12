@@ -303,11 +303,12 @@ function ConvertTo-IaLlmToolRequest {
 
 function ConvertFrom-IaLlmResponse {
 	<# Розбирає текст відповіді моделі (JSON, можливо в ```json-блоці) за contracts/llm-response.schema.json.
-	   Повертає @{ recommendations = @(); toolRequests = @(); notes; parseErrors = @() }. Не кидає винятків. #>
+	   Повертає @{ recommendations = @(); toolRequests = @(); draftDecisions = @(); notes; parseErrors = @() }. Не кидає винятків. #>
 	[CmdletBinding()]
 	param([AllowEmptyString()][AllowNull()][string]$Text)
 	$recommendations = [System.Collections.Generic.List[object]]::new()
 	$toolRequests = [System.Collections.Generic.List[object]]::new()
+	$draftDecisions = [System.Collections.Generic.List[object]]::new()
 	$errors = [System.Collections.Generic.List[string]]::new()
 	$notes = $null
 	try {
@@ -356,6 +357,29 @@ function ConvertFrom-IaLlmResponse {
 						}
 					}
 				}
+				$rawDecisions = Get-IaLlmValue -InputObject $root -Name 'draftDecisions'
+				if ($null -ne $rawDecisions) {
+					if (-not (Test-IaLlmList -Value $rawDecisions)) {
+						$errors.Add('draftDecisions: очікувався масив.')
+					}
+					else {
+						for ($i = 0; $i -lt $rawDecisions.Count; $i++) {
+							$item = $rawDecisions[$i]
+							$draftId = Get-IaLlmValue -InputObject $item -Name 'draftId'
+							$decision = @('Confirm', 'Reject') | Where-Object { $_ -eq [string](Get-IaLlmValue -InputObject $item -Name 'decision') } | Select-Object -First 1
+							if (-not (Test-IaLlmNonEmptyString -Value $draftId) -or -not $decision) {
+								$errors.Add("draftDecisions[$i]: потрібні draftId і decision (Confirm або Reject).")
+								continue
+							}
+							$reason = Get-IaLlmValue -InputObject $item -Name 'reason'
+							$draftDecisions.Add([ordered]@{
+									draftId = ([string]$draftId).Trim()
+									decision = $decision
+									reason = $(if (Test-IaLlmNonEmptyString -Value $reason) { [string]$reason } else { $null })
+								})
+						}
+					}
+				}
 				$rawNotes = Get-IaLlmValue -InputObject $root -Name 'notes'
 				if ($rawNotes -is [string]) {
 					$notes = $rawNotes
@@ -375,6 +399,7 @@ function ConvertFrom-IaLlmResponse {
 	return [ordered]@{
 		recommendations = $recommendations.ToArray()
 		toolRequests = $toolRequests.ToArray()
+		draftDecisions = $draftDecisions.ToArray()
 		notes = $notes
 		parseErrors = $errors.ToArray()
 	}

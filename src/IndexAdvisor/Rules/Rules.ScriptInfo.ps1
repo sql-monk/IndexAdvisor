@@ -217,8 +217,41 @@ function ConvertFrom-IaRuleStatement {
 	return $info
 }
 
+function Test-IaRuleExistenceGuard {
+	<# $true, якщо IF — лише перевірка існування об'єкта без ELSE: умова читає тільки системні каталоги (sys.*, INFORMATION_SCHEMA)
+	   і вбудовані функції (OBJECT_ID, INDEXPROPERTY …) — та сама перевірка джерел, що й для запитів колектора. #>
+	param([Parameter(Mandatory)]$Statement)
+	if ($Statement.GetType().Name -ne 'IfStatement' -or $null -ne $Statement.ElseStatement -or $null -eq $Statement.Predicate) {
+		return $false
+	}
+	$sources = Test-IaCoreSourcesParsed -Parsed ([ordered]@{ errors = @(); fragment = $Statement.Predicate })
+	return [bool]$sources.isValid
+}
+
+function Expand-IaRuleGuardedStatements {
+	<# Інструкції з урахуванням ідемпотентних обгорток: тіло IF [NOT] EXISTS (...) BEGIN … END розгортається (рекурсивно), кожна вкладена
+	   інструкція позначається guarded = $true. IF з іншою умовою чи з ELSE залишається інструкцією IfStatement (перевірка її відхиляє). #>
+	param([Parameter(Mandatory)]$Statement, [string]$Sql, [AllowNull()][string]$Guard)
+	if (Test-IaRuleExistenceGuard -Statement $Statement) {
+		$guardText = Get-IaRuleFragmentText -Fragment $Statement.Predicate -Sql $Sql
+		$inner = $Statement.ThenStatement
+		$children = if ($inner.GetType().Name -eq 'BeginEndBlockStatement') { @($inner.StatementList.Statements) } else { @($inner) }
+		foreach ($child in @($children | Where-Object { $null -ne $_ })) {
+			Expand-IaRuleGuardedStatements -Statement $child -Sql $Sql -Guard $guardText
+		}
+		return
+	}
+	$info = ConvertFrom-IaRuleStatement -Statement $Statement -Sql $Sql
+	if ($Guard) {
+		$info.guarded = $true
+		$info.guard = $Guard
+	}
+	$info
+}
+
 function Get-IaRuleScriptInfo {
-	<# Розбір скрипта: @{ isBlank; parsed; errors; statements; parserName; exception }. #>
+	<# Розбір скрипта: @{ isBlank; parsed; errors; statements; parserName; exception }.
+	   Ідемпотентні обгортки IF [NOT] EXISTS із системних каталогів розгортаються (Expand-IaRuleGuardedStatements). #>
 	param([AllowNull()][AllowEmptyString()][string]$Sql)
 	$result = [ordered]@{ isBlank = [string]::IsNullOrWhiteSpace($Sql); parsed = $false; errors = @(); statements = @(); parserName = $null; exception = $null }
 	if ($result.isBlank) {
@@ -239,7 +272,9 @@ function Get-IaRuleScriptInfo {
 	$statements = [System.Collections.Generic.List[object]]::new()
 	foreach ($batch in $parse.fragment.Batches) {
 		foreach ($statement in $batch.Statements) {
-			$statements.Add((ConvertFrom-IaRuleStatement -Statement $statement -Sql $Sql))
+			foreach ($info in @(Expand-IaRuleGuardedStatements -Statement $statement -Sql $Sql -Guard $null)) {
+				$statements.Add($info)
+			}
 		}
 	}
 	$result.parsed = $true

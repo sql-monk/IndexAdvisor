@@ -16,7 +16,7 @@ BeforeAll {
 Describe 'ConvertFrom-IaLlmResponse' {
 	It 'розбирає зразок tests/Fixtures/llm-response.sample.json без помилок' {
 		$result = Invoke-TestParse -Text $script:SampleText
-		@($result.Keys) | Should -Be @('recommendations', 'toolRequests', 'notes', 'parseErrors')
+		@($result.Keys) | Should -Be @('recommendations', 'toolRequests', 'draftDecisions', 'notes', 'parseErrors')
 		$result.parseErrors.Count | Should -Be 0
 		$result.recommendations.Count | Should -Be 2
 		$result.toolRequests.Count | Should -Be 0
@@ -29,6 +29,19 @@ Describe 'ConvertFrom-IaLlmResponse' {
 		$first.affectedQueryIds | Should -Be @(1002)
 		$first.confidence | Should -Be 'High'
 		$result.recommendations[1].action | Should -Be 'DropIndex'
+	}
+
+	It 'draftDecisions: коректні рішення розбираються, некоректні — помилка розбору без зупинки' {
+		$text = '{"recommendations":[],"toolRequests":[],"draftDecisions":[{"draftId":" D01 ","decision":"confirm"},' +
+			'{"draftId":"D02","decision":"Reject","reason":"Секціонування вже вирівняне"},{"draftId":"D03","decision":"Maybe"}]}'
+		$result = Invoke-TestParse -Text $text
+		@($result.draftDecisions).Count | Should -Be 2
+		$result.draftDecisions[0].draftId | Should -Be 'D01'
+		$result.draftDecisions[0].decision | Should -Be 'Confirm'
+		$result.draftDecisions[1].reason | Should -Be 'Секціонування вже вирівняне'
+		@($result.parseErrors) -join ' ' | Should -Match 'draftDecisions\[2\]'
+		Test-IaJsonAgainstSchema -Json (ConvertTo-Json -Depth 10 -InputObject ([ordered]@{ recommendations = @(); toolRequests = @(); draftDecisions = $result.draftDecisions })) -Schema 'llm-response' |
+			Should -BeTrue
 	}
 
 	It 'нормалізований результат відповідає contracts/llm-response.schema.json' {

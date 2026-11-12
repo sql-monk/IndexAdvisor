@@ -196,10 +196,12 @@ function New-IaLlmContext {
 		[object[]]$Findings = @(),
 		[Parameter(Mandatory)][ValidateSet('Indexes', 'Partitioning')][string]$Module,
 		[Parameter(Mandatory)][System.Collections.IDictionary]$ProviderConfig,
-		[Parameter(Mandatory)][System.Collections.IDictionary]$Config
+		[Parameter(Mandatory)][System.Collections.IDictionary]$Config,
+		# Токени, які займуть інші частини payload (чернетки модуля партиціонування): віднімаються від бюджету таблиць.
+		[int]$ReservedTokens = 0
 	)
 	$maxContextTokens = [int](Get-IaLlmSetting -ProviderConfig $ProviderConfig -Name 'maxContextTokens')
-	$budget = [int][Math]::Floor($maxContextTokens * $script:IaLlmContextBudgetShare)
+	$budget = [int][Math]::Max(0, [Math]::Floor($maxContextTokens * $script:IaLlmContextBudgetShare) - [Math]::Max(0, $ReservedTokens))
 	$partitioningConfig = Get-IaLlmValue -InputObject $Config -Name 'partitioning'
 
 	# Знахідки rules engine за таблицями.

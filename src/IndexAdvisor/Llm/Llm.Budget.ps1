@@ -9,8 +9,9 @@ function Measure-IaTokens {
 	if ([string]::IsNullOrEmpty($Text)) {
 		return 0
 	}
-	# Консервативно: ~3,5 байта UTF-8 на токен (кирилиця займає 2 байти на символ, тож оцінюється щільніше).
-	return [int][Math]::Ceiling([System.Text.Encoding]::UTF8.GetByteCount($Text) / 3.5)
+	# Консервативно: ~1,8 байта UTF-8 на токен. Контекст — щільний JSON (ключі, числа, GUID, псевдоніми імен): на реальному запуску
+	# Claude Opus 5.5 рахував 1,84–1,98 байта на токен, тож давніша оцінка 3,5 вдвічі занижувала розмір і бюджет не дотримувався.
+	return [int][Math]::Ceiling([System.Text.Encoding]::UTF8.GetByteCount($Text) / 1.8)
 }
 
 function Get-IaLlmCost {
@@ -19,12 +20,25 @@ function Get-IaLlmCost {
 	[OutputType([decimal])]
 	param(
 		[Parameter(Mandatory)][System.Collections.IDictionary]$ProviderConfig,
+		# Некешовані вхідні токени (без запису в кеш і читання з кешу).
 		[long]$InputTokens = 0,
-		[long]$OutputTokens = 0
+		[long]$OutputTokens = 0,
+		[long]$CacheWriteTokens = 0,
+		[long]$CacheReadTokens = 0
 	)
 	$inputPrice = [decimal]((Get-IaLlmValue -InputObject $ProviderConfig -Name 'inputPricePer1MTokensUsd') ?? 0)
 	$outputPrice = [decimal]((Get-IaLlmValue -InputObject $ProviderConfig -Name 'outputPricePer1MTokensUsd') ?? 0)
-	$cost = ([decimal]$InputTokens * $inputPrice + [decimal]$OutputTokens * $outputPrice) / [decimal]1000000
+	# Ціни кешу за замовчуванням: запис — 1,25 ціни входу (TTL 5 хв, Anthropic); читання — 0,1 ціни входу в Anthropic і 0,5 в інших
+	# (консервативно: точні ціни моделі задаються в cacheWritePricePer1MTokensUsd і cacheReadPricePer1MTokensUsd).
+	$writePrice = [decimal]((Get-IaLlmValue -InputObject $ProviderConfig -Name 'cacheWritePricePer1MTokensUsd') ?? 0)
+	if ($writePrice -le 0) {
+		$writePrice = $inputPrice * [decimal]1.25
+	}
+	$readPrice = [decimal]((Get-IaLlmValue -InputObject $ProviderConfig -Name 'cacheReadPricePer1MTokensUsd') ?? 0)
+	if ($readPrice -le 0) {
+		$readPrice = $inputPrice * $(if ([string](Get-IaLlmValue -InputObject $ProviderConfig -Name 'type') -eq 'Anthropic') { [decimal]0.1 } else { [decimal]0.5 })
+	}
+	$cost = ([decimal]$InputTokens * $inputPrice + [decimal]$OutputTokens * $outputPrice + [decimal]$CacheWriteTokens * $writePrice + [decimal]$CacheReadTokens * $readPrice) / [decimal]1000000
 	return [decimal]::Round($cost, 6)
 }
 

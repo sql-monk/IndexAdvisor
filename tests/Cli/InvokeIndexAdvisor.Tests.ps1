@@ -402,3 +402,61 @@ Describe 'bin/IndexAdvisor.ps1' {
 		$LASTEXITCODE | Should -Be 2
 	}
 }
+
+Describe 'Чернетки модуля партиціонування в промпті й рішення моделі' {
+	BeforeAll {
+		function New-CliTestPartitionDraft {
+			param([string]$Table)
+			[ordered]@{
+				action = 'AlterPartitioning'
+				target = [ordered]@{ server = 'AG1'; database = 'Sales'; schema = 'dbo'; table = $Table; index = $null }
+				title = "Додати майбутні межі секцій для $Table"
+				rationale = 'Попереду менше двох порожніх секцій.'
+				risk = [ordered]@{ level = 'Low'; description = 'SPLIT порожньої секції — зміна метаданих.' }
+				executeScript = 'ALTER PARTITION SCHEME [ps_dbo_date] NEXT USED [PRIMARY]; ALTER PARTITION FUNCTION [pf_dbo_date]() SPLIT RANGE (''2027-01-01'');'
+				rollbackScript = 'ALTER PARTITION FUNCTION [pf_dbo_date]() MERGE RANGE (''2027-01-01'');'
+				confidence = 'High'
+				partitioning = [ordered]@{ partitionColumn = 'OrderDate'; functionScript = 'CREATE PARTITION FUNCTION ...'; schemeScript = 'CREATE PARTITION SCHEME ...'; boundaries = @('2027-01-01') }
+			}
+		}
+	}
+
+	It 'компактна чернетка має draftId і не містить SQL-скриптів' {
+		$compact = & (Get-Module IndexAdvisor) { param($d) ConvertTo-IaCliCompactDraft -Draft $d -DraftId 'D01' } (New-CliTestPartitionDraft -Table 'Orders')
+		$compact.draftId | Should -Be 'D01'
+		$compact.Contains('executeScript') | Should -BeFalse
+		$compact.Contains('rollbackScript') | Should -BeFalse
+		$compact.partitioning.Contains('functionScript') | Should -BeFalse
+		$compact.partitioning.boundaries | Should -Be @('2027-01-01')
+		$compact.title | Should -Match 'Orders'
+	}
+
+	It 'Confirm — рекомендація правил зі скриптами чернетки; Reject — відкинуто з попередженням; без рішення — з попередженням' {
+		$entries = @(
+			@{ id = 'D01'; draft = (New-CliTestPartitionDraft -Table 'Orders') }
+			@{ id = 'D02'; draft = (New-CliTestPartitionDraft -Table 'Customers') }
+			@{ id = 'D03'; draft = (New-CliTestPartitionDraft -Table 'Archive') }
+		)
+		$decisions = @(
+			[ordered]@{ draftId = 'D01'; decision = 'Confirm'; reason = 'Межі потрібні.' }
+			[ordered]@{ draftId = 'D02'; decision = 'Reject'; reason = 'Таблицю не секціоновано.' }
+			[ordered]@{ draftId = 'D99'; decision = 'Confirm'; reason = $null }
+		)
+		$result = & (Get-Module IndexAdvisor) {
+			param($e, $d)
+			$run = New-IaRunResult -RequestedServer 'AGL-SALES' -Module 'Partitioning'
+			$recs = @(Merge-IaCliDraftDecisions -DraftEntries $e -Decisions $d -Run $run -Module Partitioning)
+			@{ run = $run; recs = $recs }
+		} $entries $decisions
+		@($result.recs).Count | Should -Be 2
+		$result.recs[0].target.table | Should -Be 'Orders'
+		$result.recs[0].source | Should -Be 'Rules'
+		$result.recs[0].executeScript | Should -Match 'SPLIT RANGE'
+		$result.recs[0].warnings[0] | Should -Match 'підтверджено моделлю: Межі потрібні'
+		$result.recs[1].target.table | Should -Be 'Archive'
+		$result.recs[1].warnings[0] | Should -Match 'не оцінила'
+		$messages = @($result.run.warnings | ForEach-Object { if ($_ -is [System.Collections.IDictionary]) { $_.message } else { [string]$_ } }) -join ' | '
+		$messages | Should -Match 'D02.*Таблицю не секціоновано'
+		$messages | Should -Match "невідомої чернетки 'D99'"
+	}
+}

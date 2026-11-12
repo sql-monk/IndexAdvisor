@@ -35,6 +35,16 @@ Describe 'New-IaLlmContext (модуль Indexes)' {
 		$script:Orders = $script:Database.tables | Where-Object { $_.name -eq 'Orders' }
 	}
 
+	It 'ReservedTokens зменшує бюджет таблиць: зарезервований увесь бюджет — таблиці не вміщаються' {
+		$provider = [ordered]@{ name = 'test'; type = 'OpenAI'; model = 'm'; maxContextTokens = 100000 }
+		$context = InModuleScope IndexAdvisor -Parameters @{ Snapshot = (Get-IaTestSnapshot); Provider = $provider; Config = (Get-IaTestConfig) } {
+			param($Snapshot, $Provider, $Config)
+			New-IaLlmContext -Snapshot $Snapshot -Findings @() -Module Indexes -ProviderConfig $Provider -Config $Config -ReservedTokens 80000
+		}
+		@($context.payload.databases[0].tables).Count | Should -Be 0
+		@($context.truncatedObjects | Where-Object { $_.reason -eq 'Omitted' }).Count | Should -BeGreaterThan 0
+	}
+
 	It 'повертає контрактні поля' {
 		@($script:Context.Keys) | Should -Be @('payload', 'includedObjectKeys', 'truncatedObjects', 'estimatedTokens', 'module')
 		$script:Context.module | Should -Be 'Indexes'

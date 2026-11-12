@@ -247,6 +247,9 @@
 							@{ Name = 'monthlyBudgetUsd'; Type = 'number'; Default = 0; Min = 0; Max = 10000000; Description = 'Місячний бюджет, USD (0 — без ліміту)' }
 							@{ Name = 'inputPricePer1MTokensUsd'; Type = 'number'; Default = 0; Min = 0; Max = 100000; Description = 'Ціна 1 млн вхідних токенів, USD' }
 							@{ Name = 'outputPricePer1MTokensUsd'; Type = 'number'; Default = 0; Min = 0; Max = 100000; Description = 'Ціна 1 млн вихідних токенів, USD' }
+							@{ Name = 'promptCaching'; Type = 'bool'; Default = $true; Description = 'Кешування промптів Anthropic: системний промпт і діалог (дозапити читають контекст з кешу; перший виклик — запис у кеш)' }
+							@{ Name = 'cacheWritePricePer1MTokensUsd'; Type = 'number'; Default = 0; Min = 0; Max = 100000; Description = 'Ціна запису 1 млн токенів у кеш, USD (0 — 1,25 ціни входу)' }
+							@{ Name = 'cacheReadPricePer1MTokensUsd'; Type = 'number'; Default = 0; Min = 0; Max = 100000; Description = 'Ціна читання 1 млн токенів з кешу, USD (0 — 0,1 ціни входу для Anthropic, 0,5 для інших)' }
 							@{ Name = 'timeoutSeconds'; Type = 'int'; Default = 120; Min = 1; Max = 3600; Description = 'Таймаут HTTP-запиту, с' }
 							@{ Name = 'retryCount'; Type = 'int'; Default = 3; Min = 0; Max = 10; Description = 'Кількість повторів' }
 						)

@@ -360,12 +360,15 @@ function New-IaOutReportBlocks {
 
 	# Модель, токени, вартість, дозапити.
 	$blocks.Add(@{ t = 'h'; level = 2; text = 'Модель, токени й вартість' })
+	$cacheWrite = [long](@($run.llm.calls | Where-Object { $_ } | ForEach-Object { [long]$_.cacheWriteTokens }) | Measure-Object -Sum).Sum
+	$cacheRead = [long](@($run.llm.calls | Where-Object { $_ } | ForEach-Object { [long]$_.cacheReadTokens }) | Measure-Object -Sum).Sum
 	$blocks.Add(@{ t = 'kv'; rows = @(
 				, @('Провайдер', (Format-IaOutText $run.llm.provider))
 				, @('Модель', (Format-IaOutText $run.llm.model))
 				, @('Cross-check', (Format-IaOutText $run.llm.crossCheckProvider))
 				, @('Шаблони промптів', $(if (@($run.promptTemplates).Count) { (@($run.promptTemplates | Where-Object { $_ } | ForEach-Object { "$($_.id) v$($_.version)" }) -join ', ') } else { '—' }))
 				, @('Вхідні токени', [string]$run.llm.totalInputTokens)
+				, @('З них кеш промптів: запис / читання', "$cacheWrite / $cacheRead")
 				, @('Вихідні токени', [string]$run.llm.totalOutputTokens)
 				, @('Вартість, USD', (Format-IaOutNumber $run.llm.totalCostUsd 4))
 			)
@@ -373,8 +376,9 @@ function New-IaOutReportBlocks {
 	$calls = @($run.llm.calls | Where-Object { $_ })
 	if ($calls.Count -gt 0) {
 		$blocks.Add(@{ t = 'h'; level = 3; text = 'Виклики моделі' })
-		$blocks.Add(@{ t = 'table'; headers = @('Призначення', 'Провайдер', 'Модель', 'Вхід', 'Вихід', 'USD', 'мс', 'Успіх'); rows = @(foreach ($call in $calls) {
-						, @((Format-IaOutText $call.purpose), (Format-IaOutText $call.provider), (Format-IaOutText $call.model), [string]$call.inputTokens, [string]$call.outputTokens,
+		$blocks.Add(@{ t = 'table'; headers = @('Призначення', 'Провайдер', 'Модель', 'Вхід', 'Кеш: запис / читання', 'Вихід', 'Завершення', 'USD', 'мс', 'Успіх'); rows = @(foreach ($call in $calls) {
+						, @((Format-IaOutText $call.purpose), (Format-IaOutText $call.provider), (Format-IaOutText $call.model), [string]$call.inputTokens,
+							"$([long]$call.cacheWriteTokens) / $([long]$call.cacheReadTokens)", [string]$call.outputTokens, (Format-IaOutText $call.finishReason),
 							(Format-IaOutNumber $call.costUsd 4), [string]$call.durationMs, (Format-IaOutBool $call.success))
 					})
 			})

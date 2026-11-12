@@ -307,6 +307,40 @@ Describe 'Invoke-IaAnalysisLoop' {
 		$result.error | Should -BeLike '*не JSON*'
 	}
 
+	It 'Error: відповідь обрізано лімітом вихідних токенів — пояснення з maxTokensPerRequest замість помилки розбору' -TestCases @(
+		@{ FinishReason = 'max_tokens' }
+		@{ FinishReason = 'length' }
+	) {
+		Mock -ModuleName IndexAdvisor Invoke-IaLlmChat {
+			$response = New-TestLlmResponse -Text '{"recommendations":[{"action":"AlterPartitioning","risk":' -Purpose $Purpose
+			$response.finishReason = $FinishReason
+			$response
+		}
+		Mock -ModuleName IndexAdvisor ConvertFrom-IaLlmResponse {
+			[ordered]@{ recommendations = @(); toolRequests = @(); draftDecisions = @(); notes = $null; parseErrors = @('Unexpected end when deserializing object') }
+		}
+		$result = Invoke-TestLoop -Config (New-TestLoopConfig)
+		$result.stoppedReason | Should -Be 'Error'
+		$result.error | Should -BeLike "*обрізано лімітом вихідних токенів*finish_reason = $FinishReason*maxTokensPerRequest*"
+	}
+
+	It 'рішення щодо чернеток (draftDecisions) повертаються разом з рекомендаціями' {
+		Mock -ModuleName IndexAdvisor ConvertFrom-IaLlmResponse {
+			[ordered]@{
+				recommendations = @()
+				toolRequests = @()
+				draftDecisions = @([ordered]@{ draftId = 'D01'; decision = 'Confirm'; reason = $null }, [ordered]@{ draftId = 'D02'; decision = 'Reject'; reason = 'Немає вигоди' })
+				notes = $null
+				parseErrors = @()
+			}
+		}
+		Set-TestModelTexts -Texts @('{"recommendations":[],"toolRequests":[]}')
+		$result = Invoke-TestLoop -Config (New-TestLoopConfig)
+		$result.stoppedReason | Should -Be 'Completed'
+		@($result.draftDecisions).Count | Should -Be 2
+		$result.draftDecisions[1].decision | Should -Be 'Reject'
+	}
+
 	It 'розмасковує дозапит перед виконанням і фінальні рекомендації' {
 		$testMap = [ordered]@{ names = [ordered]@{ Orders = 'tbl1' }; reverse = [ordered]@{ tbl1 = 'Orders' }; counters = @{} }
 		Mock -ModuleName IndexAdvisor ConvertFrom-IaMaskedObject {

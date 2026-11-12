@@ -99,12 +99,25 @@ llm:
       dailyBudgetUsd: 20
       inputPricePer1MTokensUsd: 2
       outputPricePer1MTokensUsd: 8
+    anthropic:
+      type: Anthropic
+      model: claude-opus-5-5
+      apiKeyRef: secret:IndexAdvisor/anthropic-api-key
+      maxTokensPerRequest: 32000      # мислення моделі входить у цей ліміт
+      maxContextTokens: 150000
+      inputPricePer1MTokensUsd: 4
+      outputPricePer1MTokensUsd: 20
+      cacheReadPricePer1MTokensUsd: 0.2
     local:
       type: OpenAICompatible
       endpoint: http://localhost:11434/v1
       model: qwen2.5-coder:32b
       isLocal: true
 ```
+
+У моделей з мисленням (Claude Opus 5.5, o-серія OpenAI) мислення входить у `maxTokensPerRequest`, тож задавайте 32000 або більше. Інакше відповідь обріжеться, і програма повідомить про це окремою помилкою. `maxContextTokens` обмежує контекст, який програма передає моделі; розмір оцінюється з розрахунку 1,8 байта на токен.
+
+Для Anthropic за замовчуванням увімкнене кешування промптів (`promptCaching`): системний промпт і діалог кешуються, тож дозапити моделі читають великий контекст з кешу. У Claude Opus 5.5 це $0,20 за 1 млн токенів замість $4. Перший виклик платить за запис у кеш — 1,25 ціни входу. Записані й прочитані з кешу токени показуються у звіті.
 
 Секрети (паролі, API-ключі) у YAML не зберігаються — лише посилання `secret:<Сховище>/<Секрет>`, `secret:<Секрет>` або `env:<ЗМІННА>`. Невідомі ключі, неправильні типи й відкриті секрети — помилка з номером рядка ще до запуску.
 

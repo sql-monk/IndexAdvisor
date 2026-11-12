@@ -136,13 +136,13 @@ tests/<Тека>/*.Tests.ps1, tests/Security/, tests/Fixtures/, tests/TestHelper
 | `Test-IaSecretReference -Reference` | bool. |
 | `Get-IaLlmProviderConfig -Name -Config [-IgnoreModelOverride]` | Провайдер (значення за замовчуванням зі схеми + `name`). |
 | `Assert-IaProviderAllowed -ProviderConfig -Config` | Режим `llm.localOnly`. |
-| `Invoke-IaLlmChat -ProviderConfig -Messages [-MaxTokens] [-JsonResponse] [-Purpose] -Config` | LlmResponse (5.5). REST: OpenAI `/v1/chat/completions`, Azure OpenAI `/openai/deployments/{model}/chat/completions?api-version=`, Anthropic `/v1/messages`, Cohere `/v2/chat`, OpenAICompatible — як OpenAI з `endpoint`. Повтори з експоненційною паузою на 429/5xx/таймаут. Бюджет — облік у `llm.budgetLedgerPath` (JSON: записи `{ utc; provider; model; inputTokens; outputTokens; costUsd; purpose }`). |
+| `Invoke-IaLlmChat -ProviderConfig -Messages [-MaxTokens] [-JsonResponse] [-Purpose] -Config` | LlmResponse (5.5). REST: OpenAI `/v1/chat/completions`, Azure OpenAI `/openai/deployments/{model}/chat/completions?api-version=`, Anthropic `/v1/messages`, Cohere `/v2/chat`, OpenAICompatible — як OpenAI з `endpoint`. Повтори з експоненційною паузою на 429/5xx/таймаут. Anthropic з `promptCaching` (за замовчуванням): `system` — масив блоків з `cache_control` на системному промпті й `cache_control` на рівні запиту (автоматичне кешування діалогу). Обрізана відповідь (`finishReason` `max_tokens`, `length`, `MAX_TOKENS`) з неповним JSON — помилка циклу з поясненням про `maxTokensPerRequest`. Бюджет — облік у `llm.budgetLedgerPath` (JSON: записи `{ utc; provider; model; inputTokens; outputTokens; costUsd; purpose }`). |
 | `Get-IaBudgetStatus`, `Get-IaLlmCost`, `Measure-IaTokens` | Облік токенів і вартості. |
 | `New-IaMaskingMap`, `ConvertTo-IaMaskedObject`, `ConvertFrom-IaMaskedObject`, `Remove-IaSqlLiterals` | Маскування (розділ 5.13). |
-| `New-IaLlmContext -Snapshot -Findings -Module -ProviderConfig -Config` | `{ payload; includedObjectKeys; truncatedObjects; estimatedTokens; module }`. В модель іде лише `payload`. Пріоритет при стисненні: таблиці зі знахідками rules engine і з топ-запитами Query Store. |
+| `New-IaLlmContext -Snapshot -Findings -Module -ProviderConfig -Config [-ReservedTokens]` | `{ payload; includedObjectKeys; truncatedObjects; estimatedTokens; module }`. В модель іде лише `payload`. Бюджет таблиць — 0,8 × `maxContextTokens` мінус `ReservedTokens` (чернетки модуля партиціонування); `Measure-IaTokens` — 1,8 байта UTF-8 на токен. Пріоритет при стисненні: таблиці зі знахідками rules engine і з топ-запитами Query Store. |
 | `Get-IaPromptTemplate -Name [-Version]` | `{ id; version; system; user; path }`. Файли `Llm/Prompts/<name>.v<N>.md`. |
 | `New-IaPrompt -TemplateName -Payload [-ToolSchemas] -Config` | Prompt (5.12). |
-| `ConvertFrom-IaLlmResponse -Text` | `{ recommendations; toolRequests; notes; parseErrors }` (contracts/llm-response.schema.json). |
+| `ConvertFrom-IaLlmResponse -Text` | `{ recommendations; toolRequests; draftDecisions; notes; parseErrors }` (contracts/llm-response.schema.json). |
 | `Invoke-IaCrossCheck -Recommendations -Payload [-MaskingMap] -Config` | `{ recommendations; calls }` — критичні (DropIndex або risk High) перевіряються моделлю `llm.crossCheckProvider`. |
 
 ### 3.5 Rules
@@ -192,7 +192,7 @@ tests/<Тека>/*.Tests.ps1, tests/Security/, tests/Fixtures/, tests/TestHelper
    3. `Get-IaDataPeriod`; короткий період → попередження в звіті.
    4. Модуль Indexes: `Invoke-IaRulesEngine`. Модуль Partitioning: `Invoke-IaPartitionAnalysis` (незалежно).
    5. `Get-IaLlmProviderConfig` + `Assert-IaProviderAllowed`; `Import-IaToolDefinitions`; `New-IaMaskingMap`.
-   6. Для кожного модуля: `New-IaLlmContext` → `ConvertTo-IaMaskedObject` (payload) → `New-IaPrompt` (`index-analysis` або `partition-analysis`; для партиціонування в payload додаються `drafts` модуля).
+   6. Для кожного модуля: `New-IaLlmContext` → `ConvertTo-IaMaskedObject` (payload) → `New-IaPrompt` (`index-analysis` або `partition-analysis`; для партиціонування в payload додаються компактні `drafts` модуля — з `draftId` і без SQL-скриптів, у межах бюджету контексту; модель повертає `draftDecisions`, і `Merge-IaCliDraftDecisions` перетворює чернетки з `Confirm` або без рішення на рекомендації правил, а з `Reject` — відкидає з попередженням).
    7. `ConvertTo-IaMaskedObject` (snapshot) → `Save-IaSnapshotArchive` (не для `-FromArchive`). Без маскування імен — попередження про немасковані тексти запитів і структуру баз.
    8. `Invoke-IaAnalysisLoop` → `New-IaRecommendation` для кожної чернетки.
    9. `llm.crossCheckProvider` → `Invoke-IaCrossCheck`.
@@ -215,12 +215,12 @@ tests/<Тека>/*.Tests.ps1, tests/Security/, tests/Fixtures/, tests/TestHelper
 `conditions[].id`: `ConsecutiveSeries`, `MinUptimePeriod`, `MinInterval`, `AnalysisWindow`, `NotPrimaryKey`, `NotUnique`, `NoForeignKeySupport`, `NotReplicated`, `NoHintReferences`, `NotUsedInQueryStore`, `CheckedOnAllReplicas`. `isEligible` — усі `met = $true`. `warning` — текст на кшталт «Ґрунтується на 1 з 3 аналізів; період 70.2 дн. (з 2026-09-01); бракує 2 підтверджень».
 
 ### 5.5 LlmResponse
-`{ llmCallId; provider; model; purpose; text; inputTokens; outputTokens; costUsd; durationMs; finishReason; createdAtUtc; promptTemplateId; promptTemplateVersion; success; error }`; `error` — рядок або `$null`.
+`{ llmCallId; provider; model; purpose; text; inputTokens; outputTokens; cacheWriteTokens; cacheReadTokens; costUsd; durationMs; finishReason; createdAtUtc; promptTemplateId; promptTemplateVersion; success; error }`; `error` — рядок або `$null`. `inputTokens` — повний розмір промпту (у тому числі запис у кеш і читання з кешу); `costUsd` рахує некешований вхід, запис і читання кешу за своїми цінами (`cacheWritePricePer1MTokensUsd`, `cacheReadPricePer1MTokensUsd`; 0 — 1,25 і 0,1 ціни входу для Anthropic, 0,5 для читання в інших).
 `New-IaLlmContext.truncatedObjects` — масив `@{ objectKey; reason = Omitted|Reduced }`.
 Помилки з `ErrorId` мають `FullyQualifiedErrorId` вигляду `IaXxx,<Функція>`: перевіряти `-like 'IaXxx*'`.
 
 ### 5.6 LlmAnalysisResult і ToolRequestRecord
-LlmAnalysisResult: `{ recommendations (чернетки, розмасковані); notes; calls = @(LlmResponse без text); toolRequests = @(ToolRequestRecord); totalInputTokens; totalOutputTokens; totalCostUsd; stoppedReason = Completed|ToolLimit|TokenLimit|BudgetExceeded|Error; error; prompt = @{ templateId; templateVersion } }`.
+LlmAnalysisResult: `{ recommendations (чернетки, розмасковані); draftDecisions (рішення щодо чернеток модуля: `{ draftId; decision = Confirm|Reject; reason }`); notes; calls = @(LlmResponse без text); toolRequests = @(ToolRequestRecord); totalInputTokens; totalOutputTokens; totalCostUsd; stoppedReason = Completed|ToolLimit|TokenLimit|BudgetExceeded|Error; error; prompt = @{ templateId; templateVersion } }`.
 ToolRequestRecord: `{ toolRequestId; llmCallId; tool; server; database; arguments; fetch; skip; reason; decision = Approved|Modified|Rejected|AutoApproved|Blocked; decisionReason; response = @{ success; rowCount; truncated; durationMs; error } або $null; executedAtUtc }`.
 
 ### 5.7 IndexVerdict

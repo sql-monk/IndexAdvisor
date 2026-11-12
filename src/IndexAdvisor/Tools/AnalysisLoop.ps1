@@ -401,13 +401,21 @@ function Invoke-IaAnalysisLoop {
 		}
 		$parsed = ConvertFrom-IaLlmResponse -Text ([string]$response.text)
 		$requests = @($parsed.toolRequests | Where-Object { $null -ne $_ })
-		$draftCount = @($parsed.recommendations | Where-Object { $null -ne $_ }).Count
+		$draftCount = @($parsed.recommendations | Where-Object { $null -ne $_ }).Count + @($parsed.draftDecisions | Where-Object { $null -ne $_ }).Count
 		$parseErrors = @($parsed.parseErrors | Where-Object { $null -ne $_ })
 		if ($parseErrors.Count -gt 0) {
 			$parseText = ($parseErrors | ForEach-Object { if ($_ -is [string]) { $_ } else { ConvertTo-Json -InputObject $_ -Depth 5 -Compress } }) -join '; '
 			if ($draftCount -eq 0 -and $requests.Count -eq 0) {
 				$stoppedReason = 'Error'
-				$errorText = "Відповідь моделі не відповідає схемі llm-response: $parseText"
+				# Відповідь, обрізана лімітом вихідних токенів, — неповний JSON: пояснення замість помилки розбору.
+				$errorText = if (Test-IaLlmTruncatedFinish -FinishReason ([string]$response.finishReason)) {
+					$limit = Get-IaLlmSetting -ProviderConfig $ProviderConfig -Name 'maxTokensPerRequest'
+					"Відповідь моделі обрізано лімітом вихідних токенів (finish_reason = $($response.finishReason), maxTokensPerRequest = $limit): JSON неповний. " +
+					'Збільште llm.providers.<провайдер>.maxTokensPerRequest; у моделей з мисленням (Claude Opus 5.5, o-серія OpenAI) мислення входить у цей ліміт.'
+				}
+				else {
+					"Відповідь моделі не відповідає схемі llm-response: $parseText"
+				}
 				break
 			}
 			$loopNotes.Add("Помилки розбору відповіді моделі: $parseText")
@@ -470,13 +478,19 @@ function Invoke-IaAnalysisLoop {
 		$purpose = 'ToolFollowUp'
 	}
 	$recommendations = @()
+	$draftDecisions = @()
 	$modelNotes = $null
 	if ($null -ne $lastParsed) {
-		$final = [ordered]@{ recommendations = @($lastParsed.recommendations | Where-Object { $null -ne $_ }); notes = $lastParsed.notes }
+		$final = [ordered]@{
+			recommendations = @($lastParsed.recommendations | Where-Object { $null -ne $_ })
+			draftDecisions = @($lastParsed.draftDecisions | Where-Object { $null -ne $_ })
+			notes = $lastParsed.notes
+		}
 		if ($null -ne $MaskingMap) {
 			$final = ConvertFrom-IaMaskedObject -InputObject $final -Map $MaskingMap
 		}
 		$recommendations = @($final.recommendations | Where-Object { $null -ne $_ })
+		$draftDecisions = @($final.draftDecisions | Where-Object { $null -ne $_ })
 		$modelNotes = $final.notes
 	}
 	if ($stoppedReason -ne 'Completed') {
@@ -502,6 +516,7 @@ function Invoke-IaAnalysisLoop {
 		})
 	return [ordered]@{
 		recommendations = $recommendations
+		draftDecisions = $draftDecisions
 		notes = $notes
 		calls = $calls.ToArray()
 		toolRequests = $records.ToArray()
