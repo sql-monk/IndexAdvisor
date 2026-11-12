@@ -464,42 +464,50 @@ function New-IaRulePartitionTableDraft {
 }
 
 function New-IaRuleFutureBoundariesDraft {
-	<# Чернетка AlterPartitioning: додати межі на майбутні періоди (SPLIT RANGE) для секціонованої таблиці. #>
+	<# Чернетка AlterPartitioning для функції секціонування: SPLIT RANGE на майбутні періоди — одна операція для всіх таблиць функції
+	   (Tables — таблиці бази на цій функції; ціль — найбільша з них). NEXT USED задається для кожної схеми, що використовує функцію. #>
 	param(
 		[Parameter(Mandatory)]$Logical,
-		[Parameter(Mandatory)][System.Collections.IDictionary]$Table,
+		[Parameter(Mandatory)][System.Collections.IDictionary[]]$Tables,
 		[Parameter(Mandatory)][string[]]$NewBoundaries,
 		[string[]]$Notes = @(),
 		[bool]$LastPartitionFilled
 	)
+	$Table = @($Tables | Sort-Object { if ($null -ne $_['reservedMb']) { [double]$_['reservedMb'] } else { 0 } } -Descending)[0]
 	$rangeRight = $Table['partitionRangeRight']
 	$schema = [string]$Table['schema']
 	$tableName = [string]$Table['name']
-	$tableSql = '{0}.{1}' -f (Format-IaRuleQuotedName $schema), (Format-IaRuleQuotedName $tableName)
 	$functionName = [string]$Table['partitionFunction']
-	$schemeName = [string]$Table['partitionScheme']
+	# Усі схеми бази на цій функції: без NEXT USED на кожній SPLIT RANGE завершиться помилкою.
+	$schemeNames = @($Logical.primary.database['tables'] | Where-Object { $_ -is [System.Collections.IDictionary] -and $_['partitionFunction'] -eq $functionName -and $_['partitionScheme'] } |
+			ForEach-Object { [string]$_['partitionScheme'] } | Sort-Object -Unique)
+	if ($schemeNames.Count -eq 0) {
+		$schemeNames = @([string]$Table['partitionScheme'])
+	}
+	$tableNames = @($Logical.primary.database['tables'] | Where-Object { $_ -is [System.Collections.IDictionary] -and $_['partitionFunction'] -eq $functionName } |
+			ForEach-Object { "[$($_['schema'])].[$($_['name'])]" } | Sort-Object -Unique)
 	$schemeLines = [System.Collections.Generic.List[string]]::new()
 	$functionLines = [System.Collections.Generic.List[string]]::new()
 	$execute = [System.Collections.Generic.List[string]]::new()
 	$rollback = [System.Collections.Generic.List[string]]::new()
 	foreach ($boundary in $NewBoundaries) {
-		$schemeLine = "ALTER PARTITION SCHEME $(Format-IaRuleQuotedName $schemeName) NEXT USED [PRIMARY];"
+		foreach ($schemeName in $schemeNames) {
+			$schemeLine = "ALTER PARTITION SCHEME $(Format-IaRuleQuotedName $schemeName) NEXT USED [PRIMARY];"
+			$schemeLines.Add($schemeLine)
+			$execute.Add($schemeLine)
+		}
 		$functionLine = "ALTER PARTITION FUNCTION $(Format-IaRuleQuotedName $functionName) () SPLIT RANGE ($boundary);"
-		$schemeLines.Add($schemeLine)
 		$functionLines.Add($functionLine)
-		$execute.Add($schemeLine)
 		$execute.Add($functionLine)
 		$rollback.Insert(0, "ALTER PARTITION FUNCTION $(Format-IaRuleQuotedName $functionName) () MERGE RANGE ($boundary);")
 	}
-	$sharing = @($Logical.primary.database['tables'] | Where-Object { $_ -is [System.Collections.IDictionary] -and $_['partitionScheme'] -eq $schemeName -and -not [object]::ReferenceEquals($_, $Table) } |
-			ForEach-Object { "$($_['schema']).$($_['name'])" })
-	$riskText = 'SPLIT RANGE змінює функцію для всіх таблиць на схемі секціонування'
-	if ($sharing.Count) { $riskText += " (також: $($sharing -join ', '))" }
-	if ($LastPartitionFilled) { $riskText += '; остання секція не порожня — SPLIT переміщує дані й тримає блокування Sch-M' }
+	$schemeName = $schemeNames[0]
+	$riskText = "SPLIT RANGE — одна операція над функцією $(Format-IaRuleQuotedName $functionName) для всіх таблиць на ній ($($tableNames.Count): $(@($tableNames | Select-Object -First 10) -join ', ')$(if ($tableNames.Count -gt 10) { ', …' }))"
+	if ($LastPartitionFilled) { $riskText += '; остання секція не порожня — SPLIT читає її під блокуванням Sch-M на всіх таблицях функції і переміщує рядки, новіші за межу' }
 	return [ordered]@{
 		action = 'AlterPartitioning'
 		target = [ordered]@{ server = $Logical.server; database = $Logical.database; schema = $schema; table = $tableName; index = $null }
-		title = "Межі на майбутні періоди для $tableSql ($(Format-IaRuleQuotedName $functionName))"
+		title = "Межі на майбутні періоди для функції $(Format-IaRuleQuotedName $functionName) ($($tableNames.Count) табл.)"
 		rationale = ('Попереду замало порожніх секцій: ' + ($Notes -join '; ') + '. Нові дані потраплятимуть в останню секцію, і подальший SPLIT стане дорогим.')
 		risk = [ordered]@{ level = $(if ($LastPartitionFilled) { 'Medium' } else { 'Low' }); description = $riskText }
 		executeScript = ($execute -join "`r`n")
@@ -525,6 +533,7 @@ function New-IaRuleFutureBoundariesDraft {
 						"Функція RANGE LEFT: кожна нова межа — кінець (включно) секції нового періоду."
 					})
 				"Перевірити файлову групу для нових секцій (NEXT USED): за конвенцією <база>_<схема>_<yyyy>_<MM>; у чернетці — [PRIMARY]."
+				"Перевірити, що NEXT USED задано для кожної схеми на функції (sys.partition_schemes за function_id), зокрема для таблиць поза межами аналізу."
 				"Виконати SPLIT RANGE для кожної нової межі до появи даних відповідного періоду."
 				'Додати додавання меж у регулярне обслуговування (наприклад, щомісячне завдання SQL Agent).'
 			)
@@ -553,6 +562,7 @@ function Invoke-IaPartitionAnalysis {
 	$settings = $Config.partitioning
 	$findings = [System.Collections.Generic.List[object]]::new()
 	$drafts = [System.Collections.Generic.List[object]]::new()
+	$functionGroups = [ordered]@{}
 	$collected = ConvertTo-IaRuleUtcDate $Snapshot['collectedAtUtc']
 	if ($null -eq $collected) { $collected = [datetime]::UtcNow }
 	foreach ($logical in @(Get-IaRuleLogicalDatabases -Snapshot $Snapshot)) {
@@ -676,28 +686,50 @@ function Invoke-IaPartitionAnalysis {
 			}
 			$days = ($boundaries[-1] - $boundaries[-2]).TotalDays
 			$step = if ($days -le 1.5) { 'Day' } elseif ($days -ge 27 -and $days -le 32) { 'Month' } elseif ($days -ge 88 -and $days -le 93) { 'Quarter' } elseif ($days -ge 364 -and $days -le 367) { 'Year' } else { 'Days' }
-			$newBoundaries = [System.Collections.Generic.List[string]]::new()
+			# Межі минулих періодів не пропонуються: якщо останню межу давно не додавали, SPLIT за минулий період переміщував би дані
+			# накопиченої останньої секції під Sch-M на всіх таблицях функції. Сітка меж продовжується до поточного моменту без SPLIT.
 			$next = $boundaries[-1]
-			$added = 0
-			while ($added -lt $required - $futureCount -and $newBoundaries.Count -lt 120) {
+			$skippedPast = 0
+			while ($skippedPast -lt 100000) {
+				$candidate = Add-IaRulePeriodStep -Date $next -Step $step -Days $days
+				if ($candidate -gt $collected) {
+					break
+				}
+				$next = $candidate
+				$skippedPast++
+			}
+			$newBoundaries = [System.Collections.Generic.List[string]]::new()
+			while ($newBoundaries.Count -lt $required - $futureCount -and $newBoundaries.Count -lt 120) {
 				$next = Add-IaRulePeriodStep -Date $next -Step $step -Days $days
 				$newBoundaries.Add((Format-IaRuleBoundaryLiteral -Date $next -Format $format))
-				if ($next -gt $collected) { $added++ }
 			}
 			# Кількість повністю майбутніх секцій дорівнює кількості меж після поточного моменту і для RANGE RIGHT (межа — початок секції),
 			# і для RANGE LEFT (межа — кінець секції, плюс остання відкрита секція); partitionRangeRight уточнює тлумачення в повідомленнях.
 			$rangeRight = $table['partitionRangeRight']
 			$rangeText = if ($null -eq $rangeRight) { 'тип RANGE невідомий' } elseif ($rangeRight) { 'RANGE RIGHT: межа — початок секції' } else { 'RANGE LEFT: межа — кінець секції' }
 			$notes = @("майбутніх секцій $futureCount, потрібно не менше $required (partitioning.minFuturePartitions)", "остання межа $($boundaries[-1].ToString('yyyy-MM-dd HH:mm:ss', [cultureinfo]::InvariantCulture))", $rangeText)
+			if ($skippedPast -gt 0) {
+				$notes += "останню межу не додавали $skippedPast період(ів): остання секція накопичує дані за них; межі минулих періодів не пропонуються (SPLIT переміщував би ці дані), перерозподіл історії — окремим етапом через SWITCH і staging-таблицю"
+			}
 			$findings.Add((New-IaFinding -RuleId 'PartitionFutureBoundaries' -Severity 'Medium' -Target $target -Message "На $tableSql замало меж на майбутні періоди: $($notes -join '; ')" -SuggestedAction 'AlterPartitioning' -Details ([ordered]@{
 							futureBoundaries = $futureCount
 							required = $required
 							step = $step
 							rangeRight = $rangeRight
+							skippedPastPeriods = $skippedPast
 							proposedBoundaries = @($newBoundaries)
 						})))
-			$drafts.Add((New-IaRuleFutureBoundariesDraft -Logical $logical -Table $table -NewBoundaries @($newBoundaries) -Notes $notes -LastPartitionFilled $lastIsFilled))
+			# Межі змінюються на рівні функції: одна чернетка на функцію бази, а не на кожну таблицю (інакше SPLIT дублювався б).
+			$functionKey = ('{0}|{1}|{2}' -f $logical.server, $logical.database, $table['partitionFunction']).ToLowerInvariant()
+			if (-not $functionGroups.Contains($functionKey)) {
+				$functionGroups[$functionKey] = @{ logical = $logical; tables = [System.Collections.Generic.List[System.Collections.IDictionary]]::new(); boundaries = @($newBoundaries); notes = $notes; lastFilled = $false }
+			}
+			$functionGroups[$functionKey].tables.Add($table)
+			$functionGroups[$functionKey].lastFilled = $functionGroups[$functionKey].lastFilled -or $lastIsFilled
 		}
+	}
+	foreach ($group in $functionGroups.Values) {
+		$drafts.Add((New-IaRuleFutureBoundariesDraft -Logical $group.logical -Tables $group.tables.ToArray() -NewBoundaries $group.boundaries -Notes $group.notes -LastPartitionFilled $group.lastFilled))
 	}
 	return [ordered]@{ findings = @($findings); drafts = @($drafts) }
 }

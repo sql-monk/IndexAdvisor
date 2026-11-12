@@ -558,6 +558,15 @@ function Test-IaRecommendation {
 		}
 		else {
 			foreach ($part in @(@{ label = 'Скрипт виконання'; key = 'execute'; info = $exec }, @{ label = 'Скрипт відкату'; key = 'rollback'; info = $roll })) {
+				# Допоміжні інструкції: USE лише цільової бази; контрольний SELECT — без INTO і лише з системних каталогів.
+				foreach ($item in @($part.info.auxiliary)) {
+					if ($item.kind -eq 'Use' -and $item.name -ne [string]$Recommendation.target.database) {
+						$failures.Add("$($part.label): USE [$($item.name)] — ціль у базі [$($Recommendation.target.database)]")
+					}
+					elseif ($item.kind -eq 'CatalogQuery' -and -not $item.readOnlySystem) {
+						$failures.Add("$($part.label): SELECT дозволено лише без INTO і лише з системних каталогів")
+					}
+				}
 				$allowed = @($allowedMap[$part.key])
 				foreach ($statement in @($part.info.statements)) {
 					$label = "$($part.label): $($statement.kind)"

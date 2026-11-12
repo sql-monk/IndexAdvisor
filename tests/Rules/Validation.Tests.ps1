@@ -261,6 +261,25 @@ Describe 'Test-IaRecommendation' {
 			(Get-TestCheck $validation 'SafeScript').status | Should -Be 'Passed'
 		}
 
+		It 'допоміжні інструкції: USE цільової бази, SET, PRINT і SELECT із системних каталогів — Passed' {
+			$execute = "USE [Sales];`nSET XACT_ABORT ON;`nSET LOCK_TIMEOUT 60000;`nPRINT N'Створення індексу';`n" +
+				"CREATE NONCLUSTERED INDEX [IX_New] ON [dbo].[Orders] ([Amount]) WITH (ONLINE = ON);`n" +
+				"SELECT [i].[name] FROM [sys].[indexes] AS [i] WHERE [i].[object_id] = OBJECT_ID(N'[dbo].[Orders]');"
+			$validation = Test-Create -Execute $execute -Rollback "USE [Sales];`nDROP INDEX [IX_New] ON [dbo].[Orders];" -Snapshot $snapshot -Config $config
+			$validation.status | Should -Be 'Passed' -Because (($validation.checks | ForEach-Object { "$($_.id)=$($_.status): $($_.message)" }) -join ' | ')
+		}
+
+		It 'допоміжна інструкція <name> — Failed' -ForEach @(
+			@{ name = 'USE іншої бази'; execute = "USE [master];`nCREATE NONCLUSTERED INDEX [IX_New] ON [dbo].[Orders] ([Amount]) WITH (ONLINE = ON);"; pattern = 'USE \[master\]' }
+			@{ name = 'SELECT з таблиці користувача'; execute = "CREATE NONCLUSTERED INDEX [IX_New] ON [dbo].[Orders] ([Amount]) WITH (ONLINE = ON);`nSELECT TOP (10) * FROM [dbo].[Orders];"; pattern = 'системних каталогів' }
+			@{ name = 'SELECT INTO'; execute = "CREATE NONCLUSTERED INDEX [IX_New] ON [dbo].[Orders] ([Amount]) WITH (ONLINE = ON);`nSELECT [name] INTO [dbo].[x] FROM [sys].[indexes];"; pattern = 'без INTO' }
+		) {
+			$validation = Test-Create -Execute $execute -Snapshot $snapshot -Config $config
+			$check = Get-TestCheck $validation 'SafeScript'
+			$check.status | Should -Be 'Failed'
+			$check.message | Should -Match $pattern
+		}
+
 		It 'обгортка IF <name> не розгортається — Failed' -ForEach @(
 			@{ name = 'з умовою по користувацькій таблиці'; execute = "IF NOT EXISTS (SELECT 1 FROM [dbo].[Orders] WHERE [Amount] > 0) CREATE NONCLUSTERED INDEX [IX_New] ON [dbo].[Orders] ([Amount]);" }
 			@{ name = 'з ELSE'; execute = "IF OBJECT_ID(N'[dbo].[Orders]') IS NULL CREATE NONCLUSTERED INDEX [IX_New] ON [dbo].[Orders] ([Amount]); ELSE DROP INDEX [IX_Status] ON [dbo].[Orders];" }

@@ -237,5 +237,43 @@ Describe 'Invoke-IaPartitionAnalysis' {
 			$config.partitioning.minFuturePartitions = 0
 			@((Invoke-TestPartition $snapshot $config).drafts).Count | Should -Be 0
 		}
+
+		It 'останню межу давно не додавали: межі лише після поточної дати, минулі періоди — окремим етапом' {
+			$partitions = (Find-IaRuleTestIndex -Snapshot $snapshot -Index 'PK_Orders').partitions
+			$values = @($null, '2023-11-01T00:00:00', '2023-12-01T00:00:00', '2024-01-01T00:00:00', '2024-02-01T00:00:00')
+			for ($i = 0; $i -lt $values.Count; $i++) { $partitions[$i].boundaryValue = $values[$i] }
+			$result = Invoke-TestPartition $snapshot $config
+			$future = @($result.findings | Where-Object { $_.ruleId -eq 'PartitionFutureBoundaries' })[0]
+			$future.details.skippedPastPeriods | Should -Be 33
+			$draft = @($result.drafts)[0]
+			$draft.partitioning.boundaries | Should -Be @("'20261201'", "'20270101'")
+			$draft.executeScript | Should -Not -Match '2024|2025'
+			$draft.rationale | Should -Match 'межі минулих періодів не пропонуються'
+			$draft.risk.level | Should -Be 'Medium'
+		}
+
+		It 'кілька таблиць на одній функції — одна чернетка, NEXT USED для кожної схеми, SPLIT один раз на межу' {
+			$customers = Get-TestTable $snapshot 'Customers'
+			$customers.isPartitioned = $true
+			$customers.partitionScheme = 'ps_dbo_customers'
+			$customers.partitionFunction = 'pf_dbo_datetime27'
+			$customers.partitionColumn = 'CreatedAt'
+			$customers.partitionRangeRight = $true
+			(Find-IaRuleTestIndex -Snapshot $snapshot -Table 'Customers' -Index 'PK_Customers').partitions = @(
+				[ordered]@{ partitionNumber = 1; rowCount = 0; boundaryValue = $null }
+				[ordered]@{ partitionNumber = 2; rowCount = 10; boundaryValue = '2026-10-01T00:00:00' }
+				[ordered]@{ partitionNumber = 3; rowCount = 5; boundaryValue = '2026-11-01T00:00:00' }
+			)
+			$result = Invoke-TestPartition $snapshot $config
+			@($result.findings | Where-Object { $_.ruleId -eq 'PartitionFutureBoundaries' }).Count | Should -Be 2
+			$drafts = @($result.drafts | Where-Object { $_.action -eq 'AlterPartitioning' })
+			$drafts.Count | Should -Be 1
+			$draft = $drafts[0]
+			$draft.title | Should -Match '\[pf_dbo_datetime27\] \(2 табл\.\)'
+			([regex]::Matches($draft.executeScript, 'NEXT USED')).Count | Should -Be 4
+			([regex]::Matches($draft.executeScript, "SPLIT RANGE \('20261201'\)")).Count | Should -Be 1
+			$draft.executeScript | Should -Match 'ALTER PARTITION SCHEME \[ps_dbo_customers\] NEXT USED'
+			$draft.risk.description | Should -Match '\[dbo\]\.\[Customers\]'
+		}
 	}
 }

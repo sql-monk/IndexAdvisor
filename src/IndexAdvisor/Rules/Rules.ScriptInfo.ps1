@@ -213,9 +213,28 @@ function ConvertFrom-IaRuleStatement {
 			$info.elements = @(foreach ($element in $Statement.AlterTableDropTableElements) { [ordered]@{ type = [string]$element.TableElementType; name = [string]$element.Name.Value } })
 			$info.constraintsOnly = @($info.elements | Where-Object { $_.type -ne 'Constraint' }).Count -eq 0
 		}
+		# Допоміжні інструкції скрипта (Get-IaRuleScriptInfo кладе їх в auxiliary, а не в statements).
+		'UseStatement' {
+			$info.kind = 'Use'
+			$info.name = [string]$Statement.DatabaseName.Value
+		}
+		{ $_ -in @('PredicateSetStatement', 'SetCommandStatement', 'SetTransactionIsolationLevelStatement') } {
+			$info.kind = 'SessionOption'
+		}
+		'PrintStatement' {
+			$info.kind = 'Print'
+		}
+		'SelectStatement' {
+			# Контрольний SELECT дозволено, лише якщо він без INTO і читає тільки системні каталоги (та сама перевірка, що для колектора).
+			$info.kind = 'CatalogQuery'
+			$sources = Test-IaCoreSourcesParsed -Parsed ([ordered]@{ errors = @(); fragment = $Statement })
+			$info.readOnlySystem = $null -eq $Statement.Into -and [bool]$sources.isValid
+		}
 	}
 	return $info
 }
+
+$script:IaRuleAuxiliaryKinds = @('Use', 'SessionOption', 'Print', 'CatalogQuery')
 
 function Test-IaRuleExistenceGuard {
 	<# $true, якщо IF — лише перевірка існування об'єкта без ELSE: умова читає тільки системні каталоги (sys.*, INFORMATION_SCHEMA)
@@ -270,15 +289,23 @@ function Get-IaRuleScriptInfo {
 		return $result
 	}
 	$statements = [System.Collections.Generic.List[object]]::new()
+	$auxiliary = [System.Collections.Generic.List[object]]::new()
 	foreach ($batch in $parse.fragment.Batches) {
 		foreach ($statement in $batch.Statements) {
 			foreach ($info in @(Expand-IaRuleGuardedStatements -Statement $statement -Sql $Sql -Guard $null)) {
-				$statements.Add($info)
+				if ($info.kind -in $script:IaRuleAuxiliaryKinds) {
+					$auxiliary.Add($info)
+				}
+				else {
+					$statements.Add($info)
+				}
 			}
 		}
 	}
 	$result.parsed = $true
 	$result.statements = $statements.ToArray()
+	# USE, SET сесійних параметрів, PRINT і контрольні SELECT: перевіряються окремо (SafeScript), в інші перевірки не потрапляють.
+	$result.auxiliary = $auxiliary.ToArray()
 	return $result
 }
 
