@@ -123,7 +123,14 @@ Describe 'Export-IaReport' {
 		$html = Get-Content -LiteralPath ($files | Where-Object { $_ -like '*report.html' }) -Raw
 		$html | Should -Match '^<!DOCTYPE html>'
 		$html | Should -Match '<meta charset="utf-8">'
-		$html | Should -Not -Match '<script'
+		# Єдиний скрипт — вбудоване сортування таблиць, дозволене CSP лише за своїм SHA-256.
+		$scripts = [regex]::Matches($html, '(?s)<script>(.*?)</script>')
+		$scripts.Count | Should -Be 1
+		([regex]::Matches($html, '<script')).Count | Should -Be 1
+		$hash = [Convert]::ToBase64String([System.Security.Cryptography.SHA256]::HashData([System.Text.Encoding]::UTF8.GetBytes($scripts[0].Groups[1].Value)))
+		$html | Should -Match ([regex]::Escape("content=""default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-$hash'"""))
+		$scripts[0].Groups[1].Value | Should -Not -Match "`r"
+		$html | Should -Match '<div class="tbl"><table class="sortable"><thead><tr><th scope="col">'
 		$html | Should -Not -Match '<link'
 		$html | Should -Not -Match '(src|href)\s*='
 		$html | Should -Not -Match 'https?://'
@@ -134,9 +141,69 @@ Describe 'Export-IaReport' {
 		$html | Should -Match 'Умови безпечного видалення \(розділ 4\.4\)'
 		$html | Should -Match '<td>не виконано</td>'
 		$html | Should -Match '<td>невідомо</td>'
-		$html | Should -Match ([regex]::Escape('CREATE NONCLUSTERED INDEX [IX_OrderDate_INC] ON [dbo].[Orders]'))
-		$html | Should -Match ([regex]::Escape('DROP INDEX [IX_Status] ON [dbo].[Orders];'))
+		# Розділи — згорнуті <details>; SQL підсвічено, без тегів текст скрипта той самий.
+		$html | Should -Match '<details class="sec l2"><summary><h2>Період даних</h2></summary>'
+		$html | Should -Match '<details class="sec l3"><summary><h3>001\. CreateIndex dbo\.Orders\.IX_OrderDate_INC</h3></summary>'
+		$html | Should -Not -Match '<details[^>]* open'
+		([regex]::Matches($html, '<details')).Count | Should -Be ([regex]::Matches($html, '</details>')).Count
+		$html | Should -Match '<span class="k">CREATE</span> <span class="k">NONCLUSTERED</span> <span class="k">INDEX</span>'
+		$plain = $html -replace '<span class="[a-z]">|</span>', ''
+		$plain | Should -Match ([regex]::Escape('CREATE NONCLUSTERED INDEX [IX_OrderDate_INC] ON [dbo].[Orders]'))
+		$plain | Should -Match ([regex]::Escape('DROP INDEX [IX_Status] ON [dbo].[Orders];'))
 		$html | Should -Match 'Відхилені перевіркою'
+		$html | Should -Match '<td>SchemaName = dbo; TableName = Orders</td>'
+		$html | Should -Not -Match 'query-dialog"'
+	}
+
+	It 'id запиту в тексті — посилання на його текст із підсвіткою; у Markdown — розділ текстів запитів' {
+		$run = New-TestReportRun
+		$run.llm.notes = @([ordered]@{ module = 'Indexes'; text = 'Запит 24810038 — найдорожчий; запит 1234 не зібрано; 24810038.5 — не id.' })
+		$run.queryTexts = @([ordered]@{ queryId = 24810038; server = 'SQL01'; database = 'Sales'; objectName = 'dbo.usp_Get'
+				queryText = "(@p INT)SELECT TOP (10) o.[Id], N'<x>' -- коментар`r`nFROM dbo.Orders AS o WHERE o.Status = @p OPTION (RECOMPILE)" })
+		$files = InModuleScope IndexAdvisor -Parameters @{ Run = $run; Config = $script:Config } { param($Run, $Config) Export-IaReport -RunResult $Run -Config $Config 6>$null }
+		$html = Get-Content -LiteralPath ($files | Where-Object { $_ -like '*report.html' }) -Raw
+		$html | Should -Match ([regex]::Escape('Запит <a class="q" href="#q-24810038">24810038</a> — найдорожчий; запит 1234 не зібрано; 24810038.5'))
+		([regex]::Matches($html, 'href=')).Count | Should -Be 1
+		$html | Should -Match '<details class="sec l2"><summary><h2>Тексти запитів Query Store</h2></summary>'
+		$html | Should -Match ([regex]::Escape('<details class="sec l3" id="q-24810038"><summary><h3>Запит 24810038</h3></summary><div class="query-body">'))
+		$html | Should -Match ([regex]::Escape('SQL01 / Sales; об&#39;єкт dbo.usp_Get'))
+		$html | Should -Match ([regex]::Escape('<span class="v">@p</span> <span class="k">INT</span>)<span class="k">SELECT</span> <span class="k">TOP</span> (<span class="n">10</span>)'))
+		$html | Should -Match ([regex]::Escape('<span class="s">N&#39;&lt;x&gt;&#39;</span> <span class="c">-- коментар</span>'))
+		$html | Should -Match ([regex]::Escape('<span class="k">OPTION</span> (<span class="k">RECOMPILE</span>)'))
+		$html | Should -Match '<dialog id="query-dialog"'
+		$md = Get-Content -LiteralPath ($files | Where-Object { $_ -like '*recommendations.md' }) -Raw
+		$md | Should -Match '### Запит 24810038'
+		$md | Should -Match ([regex]::Escape("``````sql`r`n(@p INT)SELECT TOP (10)"))
+	}
+
+	It 'SQL, який лексер не розбирає повністю, лише екранується' {
+		InModuleScope IndexAdvisor {
+			$parser = Get-IaScriptDomParser
+			ConvertTo-IaOutSqlHtml -Sql "SELECT N'обрізаний <b>" -Parser $parser | Should -Be 'SELECT N&#39;обрізаний &lt;b&gt;'
+			ConvertTo-IaOutSqlHtml -Sql 'SELECT 1' -Parser $null | Should -Be 'SELECT 1'
+		}
+	}
+
+	It 'Get-IaOutReferencedQueries бере зі знімка лише згадані запити в порядку першої згадки' {
+		InModuleScope IndexAdvisor {
+			$snapshot = [ordered]@{ instances = @([ordered]@{ serverName = 'SQL01'; databases = @(
+							[ordered]@{ name = 'Sales'; queryStoreQueries = @(
+									[ordered]@{ queryId = 1001; queryText = 'SELECT 1'; objectName = $null }
+									[ordered]@{ queryId = 2002; queryText = 'SELECT 2'; objectName = 'dbo.p' }
+									[ordered]@{ queryId = 3003; queryText = 'SELECT 3' }
+								) }
+						) }) }
+			$run = New-IaRunResult -RequestedServer 'SQL01' -Module Indexes
+			$run.llm.notes = @([ordered]@{ module = 'Indexes'; text = 'Запит 2002 дорогий' })
+			$run.toolRequests = @([ordered]@{ tool = 'query_store_plans'; arguments = [ordered]@{ QueryId = 1001 } })
+			$result = Get-IaOutReferencedQueries -RunResult $run -Snapshot $snapshot
+			@($result).Count | Should -Be 2
+			$result[0].queryId | Should -Be 1001
+			$result[1].queryId | Should -Be 2002
+			$result[1].objectName | Should -Be 'dbo.p'
+			$result[1].server | Should -Be 'SQL01'
+			(Get-IaOutReferencedQueries -RunResult $run -Snapshot $null).Count | Should -Be 0
+		}
 	}
 
 	It 'тема HTML: Auto — за prefers-color-scheme без data-theme, Light/Dark — примусово' {

@@ -387,7 +387,14 @@ function New-IaOutReportBlocks {
 	$toolRequests = @($run.toolRequests | Where-Object { $_ })
 	if ($toolRequests.Count -gt 0) {
 		$blocks.Add(@{ t = 'table'; headers = @('Інструмент', 'Сервер / база', 'Аргументи', 'Причина запиту', 'Рішення', 'Пояснення рішення', 'Рядків', 'Успіх'); rows = @(foreach ($request in $toolRequests) {
-						$arguments = if ($request.arguments) { ConvertTo-Json -InputObject $request.arguments -Depth 10 -Compress } else { '{}' }
+						# «Ключ = значення; …» замість JSON без пробілів: у вузькій колонці переноситься по словах.
+						$arguments = if ($request.arguments -is [System.Collections.IDictionary] -and $request.arguments.Count -gt 0) {
+							(@($request.arguments.GetEnumerator() | ForEach-Object {
+										$value = if ($null -eq $_.Value) { 'null' } elseif ($_.Value -is [string]) { $_.Value } else { ConvertTo-Json -InputObject $_.Value -Depth 10 -Compress }
+										"$($_.Key) = $value"
+									}) -join '; ')
+						}
+						elseif ($request.arguments) { ConvertTo-Json -InputObject $request.arguments -Depth 10 -Compress } else { '—' }
 						, @((Format-IaOutText $request.tool), "$($request.server) / $($request.database)", $arguments, (Format-IaOutText $request.reason), (Format-IaOutText $request.decision),
 							(Format-IaOutText $request.decisionReason), $(if ($request.response) { [string]$request.response.rowCount } else { '—' }), $(if ($request.response) { Format-IaOutBool $request.response.success } else { '—' }))
 					})
@@ -458,7 +465,147 @@ function New-IaOutReportBlocks {
 			$blocks.Add($block)
 		}
 	}
+	$queries = @($run.queryTexts | Where-Object { $_ -and $_.queryText })
+	if ($queries.Count -gt 0) {
+		$blocks.Add(@{ t = 'h'; level = 2; text = 'Тексти запитів Query Store' })
+		$blocks.Add(@{ t = 'p'; text = 'Запити, на які посилаються рекомендації, знахідки, дозапити й нотатки моделі. Текст — зі знімка, до 16 000 символів: у живому запуску — як у Query Store, з архіву — із замаскованими літералами.' })
+		foreach ($query in $queries) {
+			$caption = "$($query.server) / $($query.database)"
+			if ($query.objectName) {
+				$caption += "; об'єкт $($query.objectName)"
+			}
+			$blocks.Add(@{ t = 'query'; queryId = [string]$query.queryId; caption = $caption; text = [string]$query.queryText })
+		}
+	}
 	return , @($blocks.ToArray())
+}
+
+function Get-IaOutReferencedQueries {
+	<# Тексти запитів Query Store зі знімка, на які посилаються рекомендації, знахідки, дозапити, нотатки моделі й попередження:
+	   число з 4+ цифр, що збігається з queryId топ-запиту. Порядок — за першою згадкою. Результат — для RunResult.queryTexts. #>
+	[CmdletBinding()]
+	param(
+		[Parameter(Mandatory)][System.Collections.IDictionary]$RunResult,
+		[AllowNull()]$Snapshot
+	)
+	$available = @{}
+	foreach ($instance in @($Snapshot.instances | Where-Object { $_ })) {
+		foreach ($database in @($instance.databases | Where-Object { $_ })) {
+			foreach ($query in @($database.queryStoreQueries | Where-Object { $_ })) {
+				$key = [string]$query.queryId
+				if (-not $key -or [string]::IsNullOrEmpty([string]$query.queryText) -or $available.ContainsKey($key)) {
+					continue
+				}
+				$available[$key] = [ordered]@{
+					queryId = [long]$query.queryId
+					server = [string]$instance.serverName
+					database = [string]$database.name
+					objectName = $(if ($query.objectName) { [string]$query.objectName } else { $null })
+					queryText = [string]$query.queryText
+				}
+			}
+		}
+	}
+	$result = [System.Collections.Generic.List[object]]::new()
+	if ($available.Count -eq 0) {
+		return , @()
+	}
+	$sources = @($RunResult.recommendations, $RunResult.findings, $RunResult.toolRequests, $RunResult.llm.notes, $RunResult.warnings)
+	$text = ConvertTo-Json -InputObject $sources -Depth 30 -Compress -WarningAction SilentlyContinue
+	$seen = [System.Collections.Generic.HashSet[string]]::new()
+	foreach ($match in [regex]::Matches($text, '(?<!\d)\d{4,}(?!\d)')) {
+		if ($available.ContainsKey($match.Value) -and $seen.Add($match.Value)) {
+			$result.Add($available[$match.Value])
+		}
+	}
+	return , @($result.ToArray())
+}
+
+# Некомпільовані ключові слова (у ScriptDom це Identifier), вбудовані функції й типи для підсвітки SQL у HTML.
+$script:IaOutSqlExtraKeywords = [System.Collections.Generic.HashSet[string]]::new([string[]]@(
+		'OFFSET', 'FETCH', 'NEXT', 'ROWS', 'ROW', 'ONLY', 'FIRST', 'RECOMPILE', 'NOLOCK', 'READPAST', 'UPDLOCK', 'ROWLOCK', 'HOLDLOCK', 'FORCESEEK',
+		'FORCESCAN', 'MAXDOP', 'OPTIMIZE', 'UNKNOWN', 'FAST', 'LOOP', 'HASH', 'MERGE', 'APPLY', 'OVER', 'PARTITION', 'ROW_NUMBER', 'RANK', 'DENSE_RANK',
+		'NTILE', 'LAG', 'LEAD', 'COUNT', 'COUNT_BIG', 'SUM', 'MIN', 'MAX', 'AVG', 'CAST', 'TRY_CAST', 'TRY_CONVERT', 'ISNULL', 'IIF', 'CONCAT', 'CONCAT_WS',
+		'STRING_AGG', 'STRING_SPLIT', 'DATEADD', 'DATEDIFF', 'DATEPART', 'DATETRUNC', 'EOMONTH', 'GETDATE', 'GETUTCDATE', 'SYSDATETIME', 'SYSUTCDATETIME',
+		'LEN', 'SUBSTRING', 'CHARINDEX', 'REPLACE', 'UPPER', 'LOWER', 'LTRIM', 'RTRIM', 'TRIM', 'ABS', 'ROUND', 'FLOOR', 'CEILING', 'NEWID', 'SCOPE_IDENTITY',
+		'INT', 'BIGINT', 'SMALLINT', 'TINYINT', 'BIT', 'DECIMAL', 'NUMERIC', 'FLOAT', 'REAL', 'MONEY', 'CHAR', 'NCHAR', 'VARCHAR', 'NVARCHAR', 'BINARY',
+		'VARBINARY', 'DATE', 'TIME', 'DATETIME', 'DATETIME2', 'DATETIMEOFFSET', 'SMALLDATETIME', 'UNIQUEIDENTIFIER', 'XML', 'SYSNAME', 'TEXT', 'NTEXT', 'IMAGE',
+		'INCLUDE', 'ONLINE', 'RESUMABLE', 'MAX_DURATION', 'MINUTES', 'SORT_IN_TEMPDB', 'DATA_COMPRESSION', 'PAD_INDEX', 'DROP_EXISTING', 'IGNORE_DUP_KEY',
+		'STATISTICS_NORECOMPUTE', 'ALLOW_ROW_LOCKS', 'ALLOW_PAGE_LOCKS', 'WAIT_AT_LOW_PRIORITY', 'ABORT_AFTER_WAIT', 'COLUMNSTORE', 'PARTITIONS', 'RANGE',
+		'USED', 'PAGE', 'NONE', 'REBUILD', 'REORGANIZE'
+	), [System.StringComparer]::OrdinalIgnoreCase)
+
+function ConvertTo-IaOutSqlHtml {
+	<# T-SQL у HTML з підсвіткою за токенами ScriptDom: k — ключові слова, s — рядки, n — числа, c — коментарі, v — змінні.
+	   Якщо парсера немає або токени не відтворюють текст повністю (помилка лексера), текст лише екранується. #>
+	param(
+		[AllowEmptyString()][string]$Sql,
+		[AllowNull()]$Parser
+	)
+	if ([string]::IsNullOrEmpty($Sql)) {
+		return ''
+	}
+	$tokens = $null
+	if ($null -ne $Parser) {
+		try {
+			$errors = $null
+			$tokens = $Parser.GetTokenStream([System.IO.StringReader]::new($Sql), [ref]$errors)
+		}
+		catch {
+			$tokens = $null
+		}
+	}
+	if ($null -eq $tokens -or $tokens.Count -eq 0) {
+		return ConvertTo-IaOutHtmlText $Sql
+	}
+	$plain = [System.Text.StringBuilder]::new()
+	$sb = [System.Text.StringBuilder]::new()
+	foreach ($token in $tokens) {
+		$text = [string]$token.Text
+		if ($text.Length -eq 0) {
+			continue
+		}
+		[void]$plain.Append($text)
+		$type = $token.TokenType.ToString()
+		$class = switch ($type) {
+			{ $_ -in 'SingleLineComment', 'MultilineComment' } { 'c'; break }
+			{ $_ -in 'AsciiStringLiteral', 'UnicodeStringLiteral' } { 's'; break }
+			{ $_ -in 'Integer', 'Numeric', 'Real', 'Money', 'HexLiteral' } { 'n'; break }
+			'Variable' { 'v'; break }
+			{ $_ -in 'Identifier', 'QuotedIdentifier' } { if ($type -eq 'Identifier' -and $script:IaOutSqlExtraKeywords.Contains($text)) { 'k' } else { '' }; break }
+			default { if ([string]::Equals($type, $text, [System.StringComparison]::OrdinalIgnoreCase)) { 'k' } else { '' } }
+		}
+		$encoded = ConvertTo-IaOutHtmlText $text
+		if ($class) {
+			[void]$sb.Append("<span class=""$class"">").Append($encoded).Append('</span>')
+		}
+		else {
+			[void]$sb.Append($encoded)
+		}
+	}
+	if ($plain.ToString() -cne $Sql) {
+		return ConvertTo-IaOutHtmlText $Sql
+	}
+	return $sb.ToString()
+}
+
+function Add-IaOutQueryLinks {
+	<# У вже екранованому HTML числа, що збігаються з queryId розділу текстів запитів, стають посиланнями на нього. #>
+	param(
+		[AllowEmptyString()][string]$Html,
+		[AllowNull()][System.Collections.Generic.HashSet[string]]$QueryIds
+	)
+	if ([string]::IsNullOrEmpty($Html) -or $null -eq $QueryIds -or $QueryIds.Count -eq 0) {
+		return $Html
+	}
+	$evaluator = [System.Text.RegularExpressions.MatchEvaluator]{
+		param($match)
+		if ($QueryIds.Contains($match.Value)) {
+			return "<a class=""q"" href=""#q-$($match.Value)"">$($match.Value)</a>"
+		}
+		return $match.Value
+	}.GetNewClosure()
+	return [regex]::Replace($Html, '(?<![\w&#.,-])\d{4,}(?![\w]|[.,]\d)', $evaluator)
 }
 
 function ConvertTo-IaOutMarkdownText {
@@ -517,16 +664,27 @@ function ConvertTo-IaOutMarkdown {
 				[void]$sb.AppendLine()
 			}
 			'code' {
-				$text = [string]$block.text
-				$fence = '```'
-				while ($text.Contains($fence)) {
-					$fence += '`'
-				}
-				[void]$sb.AppendLine("${fence}sql").AppendLine($text.TrimEnd()).AppendLine($fence).AppendLine()
+				[void]$sb.AppendLine((ConvertTo-IaOutMarkdownCode -Text ([string]$block.text))).AppendLine()
+			}
+			'query' {
+				[void]$sb.AppendLine("### Запит $($block.queryId)").AppendLine()
+				[void]$sb.AppendLine((ConvertTo-IaOutMarkdownText $block.caption)).AppendLine()
+				[void]$sb.AppendLine((ConvertTo-IaOutMarkdownCode -Text ([string]$block.text))).AppendLine()
 			}
 		}
 	}
 	return $sb.ToString()
+}
+
+function ConvertTo-IaOutMarkdownCode {
+	<# Блок коду sql; огорожа довша за будь-яку послідовність зворотних лапок у тексті. #>
+	param([AllowEmptyString()][string]$Text)
+	$fence = '```'
+	while ($Text.Contains($fence)) {
+		$fence += '`'
+	}
+	$newLine = [System.Environment]::NewLine
+	return "${fence}sql$newLine$($Text.TrimEnd())$newLine$fence"
 }
 
 function ConvertTo-IaOutHtmlText {
@@ -539,7 +697,10 @@ function ConvertTo-IaOutHtmlText {
 }
 
 function ConvertTo-IaOutHtml {
-	<# Рендер моделі блоків у самодостатній HTML без зовнішніх ресурсів і скриптів.
+	<# Рендер моделі блоків у самодостатній HTML без зовнішніх ресурсів. Розділи h2/h3 — згортані <details>, за замовчуванням
+	   згорнуті. Єдиний вбудований скрипт сортує таблиці за кліком на заголовок, відкриває текст запиту за посиланням на його id
+	   і додає кнопки «Розгорнути/Згорнути все»; Content-Security-Policy дозволяє лише його (за SHA-256). Без скрипта посилання
+	   на запит веде до розділу «Тексти запитів Query Store». SQL підсвічується тут же, за токенами ScriptDom.
 	   Theme: Auto — за налаштуванням браузера чи ОС (prefers-color-scheme); Light/Dark — примусово (атрибут data-theme). #>
 	param(
 		[Parameter(Mandatory)][object[]]$Blocks,
@@ -547,18 +708,46 @@ function ConvertTo-IaOutHtml {
 		[ValidateSet('Auto', 'Light', 'Dark')][string]$Theme = 'Auto'
 	)
 	$darkVars = '--fg: #e6e6e6; --bg: #17181a; --muted: #a0a4aa; --line: #3a3d42; --head: #24262a; --code: #1f2124;' +
-		' --info: #182a3d; --info-line: #5b9be0; --warn: #3a2f12; --warn-line: #e0b050; --danger: #3d1a1a; --danger-line: #e06a5b;'
+		' --info: #182a3d; --info-line: #5b9be0; --warn: #3a2f12; --warn-line: #e0b050; --danger: #3d1a1a; --danger-line: #e06a5b;' +
+		' --link: #6cb6ff; --sql-k: #569cd6; --sql-s: #ce9178; --sql-n: #b5cea8; --sql-c: #6a9955; --sql-v: #9cdcfe;'
 	$style = @'
 :root { color-scheme: light dark; --fg: #1d1d1f; --bg: #ffffff; --muted: #5f6368; --line: #d0d4da; --head: #f2f4f7; --code: #f6f8fa;
-	--info: #e8f1fb; --info-line: #2f6fb5; --warn: #fff6e0; --warn-line: #b7791f; --danger: #fdecec; --danger-line: #c0392b; }
+	--info: #e8f1fb; --info-line: #2f6fb5; --warn: #fff6e0; --warn-line: #b7791f; --danger: #fdecec; --danger-line: #c0392b;
+	--link: #0b63c5; --sql-k: #0033b3; --sql-s: #a31515; --sql-n: #098658; --sql-c: #5f7a5f; --sql-v: #6f42c1; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { {darkVars} } }
 :root[data-theme="light"] { color-scheme: light; }
 :root[data-theme="dark"] { color-scheme: dark; {darkVars} }
-body { font-family: "Segoe UI", Arial, sans-serif; color: var(--fg); background: var(--bg); margin: 0 auto; padding: 16px 24px 48px; max-width: 1200px; line-height: 1.45; }
+body { font-family: "Segoe UI", Arial, sans-serif; color: var(--fg); background: var(--bg); margin: 0; padding: 16px 24px 48px; line-height: 1.45; }
+p { max-width: 1200px; }
 h1 { font-size: 1.6em; } h2 { margin-top: 2em; border-bottom: 1px solid var(--line); padding-bottom: .2em; } h3 { margin-top: 1.6em; } h4 { margin-bottom: .3em; }
-table { border-collapse: collapse; width: 100%; margin: .5em 0 1em; font-size: .92em; display: block; overflow-x: auto; }
+details.sec > summary { cursor: pointer; }
+details.sec > summary > h2, details.sec > summary > h3 { display: inline; margin: 0; border: 0; padding: 0; }
+details.l2 { margin-top: 1.2em; }
+details.l2 > summary { border-bottom: 1px solid var(--line); padding: .3em 0 .2em; }
+details.l3 { margin: .4em 0 .4em 1em; }
+details.l3 > summary { padding: .2em 0; }
+details.sec[open] > summary { margin-bottom: .6em; }
+.toolbar { display: flex; gap: 8px; margin: .5em 0 1em; }
+button { font: inherit; color: var(--fg); background: var(--head); border: 1px solid var(--line); padding: 3px 12px; cursor: pointer; }
+a.q { color: var(--link); }
+.muted { color: var(--muted); }
+pre .k { color: var(--sql-k); } pre .s { color: var(--sql-s); } pre .n { color: var(--sql-n); } pre .v { color: var(--sql-v); }
+pre .c { color: var(--sql-c); font-style: italic; }
+dialog#query-dialog { width: min(1400px, 94vw); max-height: 88vh; padding: 0; overflow: auto; color: var(--fg); background: var(--bg); border: 1px solid var(--line); }
+dialog#query-dialog::backdrop { background: rgba(0, 0, 0, .55); }
+.dlg-head { position: sticky; top: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 16px;
+	background: var(--head); border-bottom: 1px solid var(--line); }
+.dlg-head h3 { margin: 0; }
+.dlg-body { padding: 0 16px 12px; }
+.tbl { overflow-x: auto; margin: .5em 0 1em; }
+table { border-collapse: collapse; width: 100%; font-size: .92em; }
 th, td { border: 1px solid var(--line); padding: 4px 8px; text-align: left; vertical-align: top; }
+td { overflow-wrap: break-word; }
 th { background: var(--head); } table.kv th { width: 260px; }
+table.sortable thead th { cursor: pointer; user-select: none; }
+table.sortable thead th::after { content: " \2195"; color: var(--muted); }
+table.sortable thead th[aria-sort="ascending"]::after { content: " \25B2"; color: var(--fg); }
+table.sortable thead th[aria-sort="descending"]::after { content: " \25BC"; color: var(--fg); }
 pre { background: var(--code); border: 1px solid var(--line); padding: 10px; overflow-x: auto; white-space: pre; }
 .alert { border-left: 4px solid var(--info-line); background: var(--info); padding: 8px 12px; margin: .6em 0; }
 .alert.warn, ul.warn { border-left: 4px solid var(--warn-line); background: var(--warn); }
@@ -566,6 +755,115 @@ pre { background: var(--code); border: 1px solid var(--line); padding: 10px; ove
 ul.warn, ul.danger { padding: 8px 12px 8px 32px; }
 '@
 	$style = $style.Replace('{darkVars}', $darkVars)
+	# Сортування: числа (пробіли-роздільники тисяч, кома чи крапка, коротка одиниця на кшталт «ГБ» чи «%») — за значенням,
+	# решта — за абеткою з урахуванням чисел у тексті (дати ISO 8601 теж); порожні клітинки й «—» завжди внизу.
+	# Посилання a.q відкриває текст запиту у вікні (dialog); кнопки «Розгорнути/Згорнути все» з'являються лише зі скриптом.
+	$reportScript = @'
+(function () {
+	var sections = document.querySelectorAll('details.sec');
+	var title = document.querySelector('h1');
+	if (sections.length > 0 && title) {
+		var toolbar = document.createElement('div');
+		toolbar.className = 'toolbar';
+		[['Розгорнути все', true], ['Згорнути все', false]].forEach(function (item) {
+			var button = document.createElement('button');
+			button.type = 'button';
+			button.textContent = item[0];
+			button.addEventListener('click', function () {
+				Array.prototype.forEach.call(sections, function (section) { section.open = item[1]; });
+			});
+			toolbar.appendChild(button);
+		});
+		title.parentNode.insertBefore(toolbar, title.nextSibling);
+	}
+	var dialog = document.getElementById('query-dialog');
+	if (dialog && typeof dialog.showModal === 'function') {
+		var dialogTitle = dialog.querySelector('h3');
+		var dialogBody = dialog.querySelector('.dlg-body');
+		dialog.querySelector('button').addEventListener('click', function () { dialog.close(); });
+		dialog.addEventListener('click', function (event) {
+			if (event.target === dialog) {
+				dialog.close();
+			}
+		});
+		document.addEventListener('click', function (event) {
+			var link = event.target.closest ? event.target.closest('a.q') : null;
+			var query = link ? document.getElementById(link.getAttribute('href').slice(1)) : null;
+			if (!query) {
+				return;
+			}
+			event.preventDefault();
+			dialogTitle.textContent = query.querySelector('h3').textContent;
+			dialogBody.textContent = '';
+			dialogBody.appendChild(query.querySelector('.query-body').cloneNode(true));
+			dialog.showModal();
+			dialog.scrollTop = 0;
+		});
+	}
+	var collator = new Intl.Collator('uk', { numeric: true, sensitivity: 'base' });
+	var numberPattern = /^([-+]?\d[\d\s ]*(?:[.,]\d+)?)\s*([^\d\s]{1,6})?$/;
+	function cellText(row, index) {
+		var cell = row.cells[index];
+		return cell ? cell.textContent.trim() : '';
+	}
+	function isEmpty(text) {
+		return text === '' || text === '—' || text === '-';
+	}
+	function toNumber(text) {
+		var match = numberPattern.exec(text);
+		return match ? parseFloat(match[1].replace(/[\s ]/g, '').replace(',', '.')) : NaN;
+	}
+	function compare(a, b) {
+		var x = toNumber(a), y = toNumber(b);
+		return !isNaN(x) && !isNaN(y) ? x - y : collator.compare(a, b);
+	}
+	Array.prototype.forEach.call(document.querySelectorAll('table.sortable'), function (table) {
+		var headers = table.tHead.rows[0].cells;
+		Array.prototype.forEach.call(headers, function (header, index) {
+			header.tabIndex = 0;
+			header.title = 'Сортувати';
+			function sort() {
+				var direction = header.getAttribute('aria-sort') === 'ascending' ? 'descending' : 'ascending';
+				var sign = direction === 'ascending' ? 1 : -1;
+				Array.prototype.forEach.call(headers, function (other) { other.removeAttribute('aria-sort'); });
+				header.setAttribute('aria-sort', direction);
+				var body = table.tBodies[0];
+				var rows = Array.prototype.slice.call(body.rows);
+				rows.sort(function (first, second) {
+					var a = cellText(first, index), b = cellText(second, index);
+					if (isEmpty(a) || isEmpty(b)) {
+						return isEmpty(a) === isEmpty(b) ? 0 : (isEmpty(a) ? 1 : -1);
+					}
+					return sign * compare(a, b);
+				});
+				rows.forEach(function (row) { body.appendChild(row); });
+			}
+			header.addEventListener('click', sort);
+			header.addEventListener('keydown', function (event) {
+				if (event.key === 'Enter' || event.key === ' ') {
+					event.preventDefault();
+					sort();
+				}
+			});
+		});
+	});
+})();
+'@
+	# Хеш CSP браузер рахує після нормалізації переносів HTML-парсером (CRLF -> LF), тож текст скрипта — одразу з LF.
+	$reportScript = $reportScript.Replace("`r`n", "`n")
+	$scriptHash = [Convert]::ToBase64String([System.Security.Cryptography.SHA256]::HashData([System.Text.Encoding]::UTF8.GetBytes($reportScript)))
+	$policy = "default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-$scriptHash'"
+	$queryIds = [System.Collections.Generic.HashSet[string]]::new([string[]]@($Blocks | Where-Object { $_.t -eq 'query' } | ForEach-Object { [string]$_.queryId }))
+	$parser = try {
+		Get-IaScriptDomParser
+	}
+	catch {
+		$null
+	}
+	$rich = {
+		param([AllowNull()][string]$Text)
+		(Add-IaOutQueryLinks -Html (ConvertTo-IaOutHtmlText $Text) -QueryIds $queryIds) -replace "`r?`n", '<br>'
+	}
 	$sb = [System.Text.StringBuilder]::new()
 	[void]$sb.AppendLine('<!DOCTYPE html>')
 	if ($Theme -eq 'Auto') {
@@ -576,51 +874,88 @@ ul.warn, ul.danger { padding: 8px 12px 8px 32px; }
 	}
 	[void]$sb.AppendLine('<head>')
 	[void]$sb.AppendLine('<meta charset="utf-8">')
+	[void]$sb.AppendLine("<meta http-equiv=""Content-Security-Policy"" content=""$policy"">")
 	[void]$sb.AppendLine('<meta name="viewport" content="width=device-width, initial-scale=1">')
 	[void]$sb.AppendLine("<title>$(ConvertTo-IaOutHtmlText $Title)</title>")
 	[void]$sb.AppendLine("<style>`n$style</style>")
 	[void]$sb.AppendLine('</head>')
 	[void]$sb.AppendLine('<body>')
+	# Відкриті розділи: 2 — h2, 3 — h3 (і текст запиту); новий заголовок закриває розділи свого й нижчого рівня.
+	$openLevels = [System.Collections.Generic.Stack[int]]::new()
+	$closeSections = {
+		param([int]$Level)
+		while ($openLevels.Count -gt 0 -and $openLevels.Peek() -ge $Level) {
+			[void]$openLevels.Pop()
+			[void]$sb.AppendLine('</details>')
+		}
+	}
 	foreach ($block in $Blocks) {
 		switch ($block.t) {
 			'h' {
-				[void]$sb.AppendLine("<h$($block.level)>$(ConvertTo-IaOutHtmlText $block.text)</h$($block.level)>")
+				$level = [int]$block.level
+				$heading = "<h$level>$(ConvertTo-IaOutHtmlText $block.text)</h$level>"
+				if ($level -in 2, 3) {
+					& $closeSections $level
+					[void]$sb.AppendLine("<details class=""sec l$level""><summary>$heading</summary>")
+					$openLevels.Push($level)
+				}
+				else {
+					if ($level -eq 1) {
+						& $closeSections 1
+					}
+					[void]$sb.AppendLine($heading)
+				}
 			}
 			'p' {
-				[void]$sb.AppendLine("<p>$((ConvertTo-IaOutHtmlText $block.text) -replace "`r?`n", '<br>')</p>")
+				[void]$sb.AppendLine("<p>$(& $rich $block.text)</p>")
 			}
 			'alert' {
 				$class = if ($block.level -in @('warn', 'danger')) { "alert $($block.level)" } else { 'alert' }
-				[void]$sb.AppendLine("<div class=""$class"">$((ConvertTo-IaOutHtmlText $block.text) -replace "`r?`n", '<br>')</div>")
+				[void]$sb.AppendLine("<div class=""$class"">$(& $rich $block.text)</div>")
 			}
 			'ul' {
 				$class = if ($block.danger) { ' class="danger"' } elseif ($block.warn) { ' class="warn"' } else { '' }
 				[void]$sb.AppendLine("<ul$class>")
 				foreach ($item in $block.items) {
-					[void]$sb.AppendLine("<li>$(ConvertTo-IaOutHtmlText $item)</li>")
+					[void]$sb.AppendLine("<li>$(& $rich $item)</li>")
 				}
 				[void]$sb.AppendLine('</ul>')
 			}
 			'kv' {
-				[void]$sb.AppendLine('<table class="kv"><tbody>')
+				[void]$sb.AppendLine('<div class="tbl"><table class="kv"><tbody>')
 				foreach ($row in $block.rows) {
-					[void]$sb.AppendLine("<tr><th>$(ConvertTo-IaOutHtmlText $row[0])</th><td>$(ConvertTo-IaOutHtmlText $row[1])</td></tr>")
+					[void]$sb.AppendLine("<tr><th>$(ConvertTo-IaOutHtmlText $row[0])</th><td>$(& $rich $row[1])</td></tr>")
 				}
-				[void]$sb.AppendLine('</tbody></table>')
+				[void]$sb.AppendLine('</tbody></table></div>')
 			}
 			'table' {
-				[void]$sb.AppendLine('<table><thead><tr>' + (($block.headers | ForEach-Object { "<th>$(ConvertTo-IaOutHtmlText $_)</th>" }) -join '') + '</tr></thead><tbody>')
+				$headerCells = ($block.headers | ForEach-Object { "<th scope=""col"">$(ConvertTo-IaOutHtmlText $_)</th>" }) -join ''
+				[void]$sb.AppendLine("<div class=""tbl""><table class=""sortable""><thead><tr>$headerCells</tr></thead><tbody>")
 				foreach ($row in $block.rows) {
-					[void]$sb.AppendLine('<tr>' + ((@($row) | ForEach-Object { "<td>$(ConvertTo-IaOutHtmlText ([string]$_))</td>" }) -join '') + '</tr>')
+					[void]$sb.AppendLine('<tr>' + ((@($row) | ForEach-Object { "<td>$(& $rich ([string]$_))</td>" }) -join '') + '</tr>')
 				}
-				[void]$sb.AppendLine('</tbody></table>')
+				[void]$sb.AppendLine('</tbody></table></div>')
 			}
 			'code' {
-				[void]$sb.AppendLine("<pre><code class=""language-sql"">$(ConvertTo-IaOutHtmlText ([string]$block.text).TrimEnd())</code></pre>")
+				[void]$sb.AppendLine("<pre><code class=""language-sql"">$(ConvertTo-IaOutSqlHtml -Sql ([string]$block.text).TrimEnd() -Parser $parser)</code></pre>")
+			}
+			'query' {
+				& $closeSections 3
+				$id = ConvertTo-IaOutHtmlText ([string]$block.queryId)
+				[void]$sb.AppendLine("<details class=""sec l3"" id=""q-$id""><summary><h3>Запит $id</h3></summary><div class=""query-body"">")
+				[void]$sb.AppendLine("<p class=""muted"">$(ConvertTo-IaOutHtmlText $block.caption)</p>")
+				[void]$sb.AppendLine("<pre><code class=""language-sql"">$(ConvertTo-IaOutSqlHtml -Sql ([string]$block.text).TrimEnd() -Parser $parser)</code></pre>")
+				[void]$sb.AppendLine('</div></details>')
 			}
 		}
 	}
+	& $closeSections 1
+	if ($queryIds.Count -gt 0) {
+		[void]$sb.AppendLine('<dialog id="query-dialog" aria-labelledby="query-dialog-title"><div class="dlg-head"><h3 id="query-dialog-title"></h3>' +
+			'<button type="button">Закрити</button></div><div class="dlg-body"></div></dialog>')
+	}
 	[void]$sb.AppendLine("<p><small>Згенеровано IndexAdvisor $(ConvertTo-IaOutHtmlText $script:IaToolVersion) $(ConvertTo-IaOutHtmlText (ConvertTo-IaUtcString -Date ([datetime]::UtcNow))) UTC.</small></p>")
+	[void]$sb.Append('<script>').Append($reportScript).AppendLine('</script>')
 	[void]$sb.AppendLine('</body>')
 	[void]$sb.AppendLine('</html>')
 	return $sb.ToString()

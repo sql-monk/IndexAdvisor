@@ -168,7 +168,8 @@ tests/<Тека>/*.Tests.ps1, tests/Security/, tests/Fixtures/, tests/TestHelper
 ### 3.6 Output
 | Функція | Результат |
 |---|---|
-| `Export-IaReport -RunResult -Config` | Файли в `output.path/<yyyyMMdd_HHmmss>_<server>_<runId8>/`: `recommendations.md`, `sql/NNN_<action>_<table>_<index>.sql` і `sql/NNN_..._rollback.sql`, `report.html`, `result.json`; `Console` — підсумок у консоль. Розділ 9. |
+| `Export-IaReport -RunResult -Config` | Файли в `output.path/<yyyyMMdd_HHmmss>_<server>_<runId8>/`: `recommendations.md`, `sql/NNN_<action>_<table>_<index>.sql` і `sql/NNN_..._rollback.sql`, `report.html`, `result.json`; `Console` — підсумок у консоль. Розділ 9. `report.html`: розділи h2/h3 згортані (за замовчуванням згорнуті), таблиці сортуються за кліком на заголовок, SQL підсвічено за токенами ScriptDom, id запитів із `RunResult.queryTexts` — посилання, що відкривають текст запиту; єдиний вбудований скрипт дозволено CSP за SHA-256, тема — `output.htmlTheme`. |
+| `Get-IaOutReferencedQueries -RunResult -Snapshot` | `RunResult.queryTexts`: `{queryId, server, database, objectName, queryText}` топ-запитів знімка, чиї id (4+ цифри) згадано в рекомендаціях, знахідках, дозапитах, нотатках моделі чи попередженнях; порядок — за першою згадкою. Текст — зі знімка (з архіву — із замаскованими літералами). |
 | `Save-IaRunToRepository -RunResult -Config` | Запис у репозиторій (розділ 8) через внутрішню `Invoke-IaOutRepositoryCommand` (параметризовані INSERT/DELETE лише в базу `repository.database`; відмова, якщо ця база є серед цільових). |
 | `Get-IaRecommendationHistory -ObjectKeys -Module -Config` | IndexVerdict[] з репозиторію. |
 | `Remove-IaExpiredHistory -Config` | Кількість видалених запусків. |

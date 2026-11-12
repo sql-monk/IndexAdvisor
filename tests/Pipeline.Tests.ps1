@@ -120,6 +120,7 @@ Describe 'Конвеєр Invoke-IndexAdvisor -FromArchive' {
 		$mdText = Get-Content -LiteralPath $md.FullName -Raw
 		$mdText | Should -Match '2026-09-01'
 		$mdText | Should -Match 'IX_Status'
-		(Get-Content -LiteralPath $html.FullName -Raw) | Should -Match 'DROP INDEX'
+		# SQL у HTML підсвічено тегами span; без них текст скрипта той самий.
+		((Get-Content -LiteralPath $html.FullName -Raw) -replace '<span class="[a-z]">|</span>', '') | Should -Match 'DROP INDEX'
 	}
 }

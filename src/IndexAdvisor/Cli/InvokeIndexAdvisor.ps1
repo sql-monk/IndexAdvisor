@@ -800,6 +800,14 @@ function Invoke-IaCliServerRun {
 				Add-IaCliRunWarning -Run $run -Message "План обслуговування індексів не сформовано: $($_.Exception.Message)"
 			}
 		}
+
+		# Тексти запитів Query Store, на які посилається результат: у звіті їх id стають посиланнями.
+		try {
+			$run.queryTexts = Get-IaOutReferencedQueries -RunResult $run -Snapshot $snapshot
+		}
+		catch {
+			Add-IaCliRunWarning -Run $run -Informational -Message "Тексти запитів для звіту не зібрано: $($_.Exception.Message)"
+		}
 		if (@($moduleState.Values | Where-Object { $_.completed }).Count -eq 0 -and $run.recommendations.Count -eq 0) {
 			$fatal = $true
 		}
