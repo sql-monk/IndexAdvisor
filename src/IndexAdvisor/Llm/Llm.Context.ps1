@@ -384,7 +384,9 @@ function New-IaLlmContext {
 			if ($Module -eq 'Partitioning') {
 				$minSizeGb = [double]((Get-IaLlmValue -InputObject $partitioningConfig -Name 'minSizeGb') ?? 0)
 				$minRowCount = [double]((Get-IaLlmValue -InputObject $partitioningConfig -Name 'minRowCount') ?? 0)
-				$isCandidate = $tableFindings.Count -gt 0 -or $isPartitioned -or ($sizeMb / 1024 -ge $minSizeGb) -or ([double]($table['rowCount'] ?? 0) -ge $minRowCount)
+				# Пороги діють разом, як у Invoke-IaPartitionAnalysis (QUESTIONS.md, потік 5, п. 14).
+				$meetsThresholds = ($sizeMb / 1024 -ge $minSizeGb) -and ([double]($table['rowCount'] ?? 0) -ge $minRowCount)
+				$isCandidate = $tableFindings.Count -gt 0 -or $isPartitioned -or $meetsThresholds
 				if (-not $isCandidate) {
 					continue
 				}

@@ -156,7 +156,7 @@ Describe 'Get-IaDatasetSelection' {
 
 	It 'вимкнений набір — у disabled з попередженням про зниження достовірності' -ForEach @(
 		@{ Name = 'usageStats'; Pattern = 'usage_stats' }
-		@{ Name = 'operationalStats'; Pattern = 'пом''якшені правила' }
+		@{ Name = 'operationalStats'; Pattern = 'лише за співвідношенням записів і читань' }
 		@{ Name = 'sizeAndFragmentation'; Pattern = 'фрагментац' }
 		@{ Name = 'missingIndexes'; Pattern = 'Query Store' }
 		@{ Name = 'queryStore'; Pattern = 'не використовувався за період' }

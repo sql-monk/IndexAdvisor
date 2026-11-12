@@ -109,6 +109,16 @@ Describe 'Save-IaSnapshotArchive' {
 		$sids | Should -Be $expected
 	}
 
+	It 'наявний каталог, що успадковує права, — лише попередження, права не змінюються' -Skip:(-not $IsWindows) {
+		[void][System.IO.Directory]::CreateDirectory($script:Config.archive.path)
+		$saveWarnings = & $script:Module {
+			param($s, $p, $r, $c)
+			Save-IaSnapshotArchive -Snapshot $s -Prompts $p -RunId $r -Config $c 3>&1 | Where-Object { $_ -is [System.Management.Automation.WarningRecord] }
+		} (Get-IaTestSnapshot) @(New-ColTestPrompt) $script:RunId $script:Config
+		@($saveWarnings | Where-Object { $_.Message -match 'уже існує й успадковує права' }).Count | Should -Be 1
+		(Get-Acl -LiteralPath $script:Config.archive.path).AreAccessRulesProtected | Should -BeFalse
+	}
+
 	It 'archive.restrictAcl = false — права не змінюються' -Skip:(-not $IsWindows) {
 		$script:Config.archive.restrictAcl = $false
 		$null = Save-ColTestArchive -Snapshot (Get-IaTestSnapshot) -Prompts @(New-ColTestPrompt) -Config $script:Config 3>$null

@@ -49,6 +49,16 @@ Describe 'Get-IaLlmProviderConfig' {
 			Should -Throw -ErrorId 'IaConfigInvalid*'
 	}
 
+	It 'приймає apiKeyRef зі сховища і зі змінної середовища: <Reference>' -TestCases @(
+		@{ Reference = 'env:IA_LLM_TEST_OPENAI' }
+		@{ Reference = 'secret:IndexAdvisor-openai' }
+		@{ Reference = 'secret:Vault/IndexAdvisor-openai' }
+	) {
+		$script:Config.llm.providers.openai.apiKeyRef = $Reference
+		$provider = InModuleScope IndexAdvisor -Parameters @{ Config = $script:Config } { param($Config) Get-IaLlmProviderConfig -Name 'openai' -Config $Config }
+		$provider.apiKeyRef | Should -Be $Reference
+	}
+
 	It 'відхиляє відкритий ключ у apiKeyRef і не показує його' {
 		$script:Config.llm.providers['plain'] = [ordered]@{ type = 'OpenAI'; model = 'm'; apiKeyRef = 'sk-plaintext-SECRET-123456' }
 		$caught = $null
@@ -287,7 +297,7 @@ Describe 'Invoke-IaLlmChat: формати запитів і розбір від
 		{ InModuleScope IndexAdvisor -Parameters @{ Config = $script:Config; Messages = $script:Messages } {
 				param($Config, $Messages)
 				Invoke-IaLlmChat -ProviderConfig (Get-IaLlmProviderConfig -Name 'openai' -Config $Config) -Messages $Messages -Config $Config
-			} } | Should -Throw -ErrorId 'IaSecretNotFound*'
+			} } | Should -Throw -ErrorId 'IaSecretNotFound*' -ExpectedMessage '*apiKeyRef*env:*secret:*'
 		Should -Invoke -ModuleName IndexAdvisor Invoke-RestMethod -Times 0 -Exactly
 	}
 }

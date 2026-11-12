@@ -140,6 +140,7 @@ Describe 'New-IaLlmContext (модуль Partitioning)' {
 	It 'кандидати мають секції індексів і зведення предикатів' {
 		$config = Get-IaTestConfig
 		$config.partitioning.minRowCount = 1000
+		$config.partitioning.minSizeGb = 1
 		$context = Invoke-TestContext -Snapshot (Get-IaTestSnapshot) -Module 'Partitioning' -Config $config
 		$orders = $context.payload.databases[0].tables | Where-Object { $_.name -eq 'Orders' }
 		$orders | Should -Not -BeNullOrEmpty
@@ -148,5 +149,37 @@ Describe 'New-IaLlmContext (модуль Partitioning)' {
 		$orderDate.operator | Should -Be 'Range'
 		$orderDate.queryCount | Should -BeGreaterThan 0
 		$context.includedObjectKeys | Should -Contain 'ag1|sales|dbo.orders|'
+	}
+
+	It 'один виконаний поріг (<Case>) — таблиця не кандидат' -ForEach @(
+		@{ Case = 'лише кількість рядків'; MinSizeGb = 50; MinRowCount = 1000 }
+		@{ Case = 'лише розмір'; MinSizeGb = 0.01; MinRowCount = 100000000 }
+	) {
+		$config = Get-IaTestConfig
+		$config.partitioning.minSizeGb = $MinSizeGb
+		$config.partitioning.minRowCount = $MinRowCount
+		$context = Invoke-TestContext -Snapshot (Get-IaTestSnapshot) -Module 'Partitioning' -Config $config
+		$context.payload.databases[0].tables.Count | Should -Be 0
+		$context.includedObjectKeys.Count | Should -Be 0
+	}
+
+	It 'пороги minSizeGb і minRowCount діють разом, як у Invoke-IaPartitionAnalysis' {
+		$snapshot = Get-IaTestSnapshot
+		$config = Get-IaTestConfig
+		# Поріг рядків проходять Orders (5 млн) і Customers (200 тис.), поріг розміру — лише Orders (~2 ГБ; Customers ~0,06 ГБ).
+		$config.partitioning.minRowCount = 1000
+		$config.partitioning.minSizeGb = 1
+		$findings = @(InModuleScope IndexAdvisor -Parameters @{ Snapshot = $snapshot; Config = $config } {
+				param($Snapshot, $Config)
+				(Invoke-IaPartitionAnalysis -Snapshot $Snapshot -Config $Config).findings
+			})
+		@($findings | ForEach-Object { $_.target.table } | Sort-Object -Unique) | Should -Be @('Orders')
+		foreach ($context in @(
+				(Invoke-TestContext -Snapshot $snapshot -Module 'Partitioning' -Config $config)
+				(Invoke-TestContext -Snapshot $snapshot -Findings $findings -Module 'Partitioning' -Config $config)
+			)) {
+			@($context.payload.databases[0].tables | ForEach-Object { $_.name }) | Should -Be @('Orders')
+			$context.includedObjectKeys | Should -Not -Contain 'ag1|sales|dbo.customers|'
+		}
 	}
 }

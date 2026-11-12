@@ -524,7 +524,7 @@ function Invoke-IaLlmChat {
 	}
 	elseif ($type -ne 'OpenAICompatible') {
 		$PSCmdlet.ThrowTerminatingError((New-IaLlmErrorRecord -ErrorId 'IaSecretNotFound' -Category InvalidData -Message (
-			"llm.providers.$($settings['name']).apiKeyRef: для провайдера типу $type потрібне посилання на API-ключ у захищеному сховищі.")))
+			"llm.providers.$($settings['name']).apiKeyRef: для провайдера типу $type потрібне посилання на API-ключ (env:ІМ'Я, secret:Ім'я або secret:Сховище/Ім'я).")))
 	}
 
 	$request = New-IaLlmHttpRequest -ProviderConfig $settings -Messages $Messages -MaxTokens $effectiveMaxTokens -JsonResponse ([bool]$JsonResponse) -ApiKey $apiKey

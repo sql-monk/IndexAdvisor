@@ -118,7 +118,7 @@
 				@{ Name = 'enabled'; Type = 'bool'; Default = $true; Description = 'Зберігати архів' }
 				@{ Name = 'path'; Type = 'string'; Default = './archive'; Description = 'Каталог архівів' }
 				@{ Name = 'retentionDays'; Type = 'int'; Default = 90; Min = 1; Max = 3650; Description = 'Термін зберігання архівів, днів' }
-				@{ Name = 'restrictAcl'; Type = 'bool'; Default = $true; Description = 'Обмежити доступ до каталогу правами NTFS (поточний користувач і Administrators)' }
+				@{ Name = 'restrictAcl'; Type = 'bool'; Default = $true; Description = 'Обмежити доступ до нового каталогу правами NTFS: лише поточний користувач, SYSTEM і Administrators, без успадкування (Windows). Права наявного каталогу не змінюються — лише попередження, якщо він успадковує права' }
 			)
 		}
 		@{
@@ -149,7 +149,7 @@
 				@{ Name = 'database'; Type = 'string'; Default = 'IndexAdvisor'; Description = 'База репозиторію' }
 				@{ Name = 'authentication'; Type = 'string'; Enum = @('Windows', 'Sql'); Default = 'Windows'; Description = 'Автентифікація до репозиторію' }
 				@{ Name = 'login'; Type = 'string'; Default = ''; Description = 'Логін для SQL-автентифікації' }
-				@{ Name = 'passwordRef'; Type = 'string'; Secret = $true; Default = ''; Description = 'Посилання на пароль' }
+				@{ Name = 'passwordRef'; Type = 'string'; Secret = $true; Default = ''; Description = 'Посилання на пароль у захищеному сховищі або змінній середовища (не сам пароль)' }
 				@{ Name = 'encrypt'; Type = 'string'; Enum = @('Mandatory', 'Optional', 'Strict'); Default = 'Mandatory'; Description = 'Параметр Encrypt' }
 				@{ Name = 'trustServerCertificate'; Type = 'bool'; Default = $false; Description = 'Параметр TrustServerCertificate' }
 				@{ Name = 'historyRetentionDays'; Type = 'int'; Default = 730; Min = 30; Max = 36500; Description = 'Термін зберігання історії рекомендацій, днів' }
@@ -165,7 +165,7 @@
 					Properties = @(
 						@{ Name = 'requiredConsecutive'; Type = 'int'; Default = 3; Min = 1; Max = 100; Description = 'N аналізів поспіль з рекомендацією видалення' }
 						@{ Name = 'minIntervalDays'; Type = 'int'; Default = 7; Min = 1; Max = 365; Description = 'Мінімальний інтервал між аналізами серії, днів' }
-						@{ Name = 'minUptimeDays'; Type = 'int'; Default = 14; Min = 14; Max = 3650; Description = 'Мінімальний період роботи сервера для аналізу, днів (не менше 14)' }
+						@{ Name = 'minUptimeDays'; Type = 'int'; Default = 14; Min = 14; Max = 3650; Description = 'Мінімальний період даних, днів (не менше 14), за якого аналіз зараховується до серії рекомендацій на видалення. Період рахується від запуску інстансу чи failover, для індексу — від останньої перебудови, якщо вона пізніша. Коротший період аналіз не блокує: запуск не зараховується до серії, а короткий період інстансу чи бази дає попередження (код повернення 1). З цим порогом порівнюються також термін зберігання й період даних Query Store' }
 					)
 				}
 				@{
@@ -173,7 +173,7 @@
 					Properties = @(
 						@{ Name = 'enabled'; Type = 'bool'; Default = $true; Description = 'Застосовувати пом''якшені правила' }
 						@{ Name = 'requiredConsecutive'; Type = 'int'; Default = 1; Min = 1; Max = 100; Description = 'N для «дорогих» індексів' }
-						@{ Name = 'minUptimeDays'; Type = 'int'; Default = 7; Min = 1; Max = 3650; Description = 'Мінімальний період для «дорогих» індексів, днів' }
+						@{ Name = 'minUptimeDays'; Type = 'int'; Default = 7; Min = 1; Max = 3650; Description = 'Мінімальний період даних для «дорогих» індексів, днів (діє менше з цього значення і стандартного)' }
 						@{ Name = 'minWriteToReadRatio'; Type = 'number'; Default = 10; Min = 1; Max = 1000000; Description = 'updates / (seeks + scans + lookups), з якого запис «значно переважає»' }
 						@{ Name = 'maxReads'; Type = 'int'; Default = 1000; Min = 0; Max = 2147483647; Description = 'Читань (seeks + scans + lookups) не більше — «читань мало»' }
 						@{ Name = 'minLockWaitMs'; Type = 'int'; Default = 60000; Min = 0; Max = 2147483647; Description = 'row_lock_wait_in_ms + page_lock_wait_in_ms, з якого очікування помітні' }
@@ -188,7 +188,7 @@
 							@{ Name = 'server'; Type = 'string'; Required = $true; Description = 'Сервер (або ім''я AG)' }
 							@{ Name = 'database'; Type = 'string'; Default = ''; Description = 'База (порожньо — весь сервер)' }
 							@{ Name = 'table'; Type = 'string'; Default = ''; Description = 'Таблиця schema.table (порожньо — вся база)' }
-							@{ Name = 'minUptimeDays'; Type = 'int'; Required = $true; Min = 14; Max = 3650; Description = 'Мінімальний період, днів' }
+							@{ Name = 'minUptimeDays'; Type = 'int'; Required = $true; Min = 14; Max = 3650; Description = 'Мінімальний період даних, днів (замість rules.drop.minUptimeDays)' }
 						)
 					}
 				}
@@ -209,8 +209,8 @@
 			Type = 'object'
 			Description = 'Модуль рекомендацій щодо партиціонування (розділ 4.6)'
 			Properties = @(
-				@{ Name = 'minSizeGb'; Type = 'number'; Default = 50; Min = 0; Max = 1000000; Description = 'Мінімальний розмір таблиці-кандидата, ГБ' }
-				@{ Name = 'minRowCount'; Type = 'int'; Default = 100000000; Min = 0; Max = 2147483647; Description = 'Мінімальна кількість рядків таблиці-кандидата' }
+				@{ Name = 'minSizeGb'; Type = 'number'; Default = 50; Min = 0; Max = 1000000; Description = 'Мінімальний розмір таблиці-кандидата, ГБ. Кандидат має відповідати обом порогам — розміру й кількості рядків (0 вимикає поріг)' }
+				@{ Name = 'minRowCount'; Type = 'int'; Default = 100000000; Min = 0; Max = 2147483647; Description = 'Мінімальна кількість рядків таблиці-кандидата. Діє разом із minSizeGb (0 вимикає поріг)' }
 				@{ Name = 'minDateFilterShare'; Type = 'number'; Default = 0.6; Min = 0; Max = 1; Description = 'Частка запитів (за вартістю), що фільтрують за одним стовпцем дати чи періоду' }
 				@{ Name = 'maxPartitionSkewRatio'; Type = 'number'; Default = 10; Min = 1; Max = 1000000; Description = 'Поріг перекосу: найбільша секція / медіана' }
 				@{ Name = 'minFuturePartitions'; Type = 'int'; Default = 2; Min = 0; Max = 1000; Description = 'Скільки порожніх секцій на майбутні періоди має бути попереду' }
@@ -240,7 +240,7 @@
 							@{ Name = 'type'; Type = 'string'; Required = $true; Enum = @('OpenAI', 'Anthropic', 'Cohere', 'AzureOpenAI', 'OpenAICompatible'); Description = 'Тип провайдера' }
 							@{ Name = 'endpoint'; Type = 'string'; Default = ''; Description = 'Endpoint (порожньо — стандартний для типу; для AzureOpenAI і OpenAICompatible обов''язковий)' }
 							@{ Name = 'model'; Type = 'string'; Required = $true; Description = 'Модель (для AzureOpenAI — ім''я розгортання)' }
-							@{ Name = 'apiKeyRef'; Type = 'string'; Secret = $true; Default = ''; Description = 'Посилання на API-ключ у захищеному сховищі' }
+							@{ Name = 'apiKeyRef'; Type = 'string'; Secret = $true; Default = ''; Description = 'Посилання на API-ключ у захищеному сховищі або змінній середовища (не сам ключ). Для OpenAICompatible можна не задавати' }
 							@{ Name = 'apiVersion'; Type = 'string'; Default = ''; Description = 'Версія API (AzureOpenAI, Anthropic)' }
 							@{ Name = 'isLocal'; Type = 'bool'; Default = $false; Description = 'Локальна модель (дозволена в режимі localOnly лише для типу OpenAICompatible)' }
 							@{ Name = 'maxTokensPerRequest'; Type = 'int'; Default = 4096; Min = 1; Max = 1000000; Description = 'Ліміт вихідних токенів на запит' }

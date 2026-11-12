@@ -101,7 +101,7 @@ function New-IaConnectionString {
 			$PSCmdlet.ThrowTerminatingError((New-IaCoreError -ErrorId 'IaConfigInvalid' -Message 'Для SQL-автентифікації не задано connection.login.'))
 		}
 		if ([string]::IsNullOrWhiteSpace([string]$connection['passwordRef'])) {
-			$PSCmdlet.ThrowTerminatingError((New-IaCoreError -ErrorId 'IaConfigInvalid' -Message 'Для SQL-автентифікації не задано connection.passwordRef (посилання на пароль у захищеному сховищі).'))
+			$PSCmdlet.ThrowTerminatingError((New-IaCoreError -ErrorId 'IaConfigInvalid' -Message 'Для SQL-автентифікації не задано connection.passwordRef (посилання на пароль у захищеному сховищі або змінній середовища).'))
 		}
 		$secret = Get-IaSecret -Reference ([string]$connection['passwordRef']) -AsPlainText
 		if ($secret -is [securestring]) {

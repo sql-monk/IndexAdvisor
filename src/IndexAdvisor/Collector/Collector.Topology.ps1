@@ -133,7 +133,7 @@ function Get-IaTopology {
 
 $script:IaColDatasetWarnings = [ordered]@{
 	usageStats = 'Набір usageStats вимкнено: seeks, scans, lookups і updates з sys.dm_db_index_usage_stats не зібрано; невикористовувані та write-only індекси визначаються лише за Query Store, рекомендації на видалення менш достовірні.'
-	operationalStats = 'Набір operationalStats вимкнено: блокування, latch і page splits не оцінюються, пом''якшені правила для «дорогих» індексів не застосовуються.'
+	operationalStats = 'Набір operationalStats вимкнено: блокування, latch і page splits не оцінюються; «дорогі» індекси для пом''якшених правил визначаються лише за співвідношенням записів і читань (usageStats).'
 	sizeAndFragmentation = 'Набір sizeAndFragmentation вимкнено: розмір, кількість рядків і фрагментація невідомі; оцінка розміру й часу побудови нових індексів та рекомендації щодо фрагментації неможливі.'
 	missingIndexes = 'Набір missingIndexes вимкнено: кандидати на створення визначаються лише з планів Query Store.'
 	queryStore = 'Набір queryStore вимкнено: рекомендація на видалення лише позначає, що індекс не використовувався за період роботи сервера за даними DMV; використання в планах, хінти в текстах запитів і профіль навантаження не перевіряються.'

@@ -227,6 +227,19 @@ Describe 'Test-IaExpensiveIndex' {
 		$index.usage.userSeeks = 5000
 		(Test-Expensive $index $config).isExpensive | Should -BeFalse
 	}
+
+	It 'без operationalStats «дорогий» визначається лише за співвідношенням записів і читань' {
+		$index = [ordered]@{
+			usage = [ordered]@{ userSeeks = 5; userScans = 0; userLookups = 0; userUpdates = 50000 }
+			operational = $null
+		}
+		$result = Test-Expensive $index $config
+		$result.isExpensive | Should -BeTrue
+		($result.reasons -join ' ') | Should -Match 'оновлень 50000 значно більше за читання 5'
+		($result.reasons -join ' ') | Should -Not -Match 'блокуваннях|латчах'
+		$index.usage.userUpdates = 20
+		(Test-Expensive $index $config).isExpensive | Should -BeFalse
+	}
 }
 
 Describe 'Merge-IaMissingIndexes і Get-IaIndexCreateEstimate' {
