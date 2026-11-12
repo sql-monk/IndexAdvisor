@@ -1,0 +1,61 @@
+<Window x:Class="IndexAdvisor.Gui.Dialogs.PromptDialog"
+		xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+		xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+		Title="IndexAdvisor — потрібна відповідь"
+		Width="780"
+		MinWidth="480"
+		MaxHeight="760"
+		SizeToContent="Height"
+		WindowStartupLocation="CenterOwner"
+		ResizeMode="CanResizeWithGrip"
+		ShowInTaskbar="False">
+	<Grid Margin="24,20,24,20">
+		<Grid.RowDefinitions>
+			<RowDefinition Height="Auto" />
+			<RowDefinition Height="*" />
+			<RowDefinition Height="Auto" />
+			<RowDefinition Height="Auto" />
+			<RowDefinition Height="Auto" />
+		</Grid.RowDefinitions>
+
+		<TextBlock x:Name="HeadingText" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
+
+		<TextBox x:Name="ContextBox"
+				 Grid.Row="1"
+				 Margin="0,12,0,0"
+				 MinHeight="80"
+				 IsReadOnly="True"
+				 FontFamily="Cascadia Mono, Consolas"
+				 FontSize="12.5"
+				 TextWrapping="Wrap"
+				 VerticalScrollBarVisibility="Auto"
+				 HorizontalScrollBarVisibility="Disabled" />
+
+		<TextBlock x:Name="QuestionText" Grid.Row="2" Margin="0,14,0,0" FontWeight="SemiBold" TextWrapping="Wrap" />
+
+		<StackPanel x:Name="InputPanel" Grid.Row="3" Margin="0,8,0,0">
+			<TextBlock x:Name="UserNameLabel" Text="Користувач" Margin="0,0,0,4" />
+			<TextBox x:Name="UserNameBox" Margin="0,0,0,10" />
+			<TextBlock x:Name="PasswordLabel" Text="Пароль" Margin="0,0,0,4" />
+			<TextBox x:Name="InputBox" />
+			<PasswordBox x:Name="PasswordInput" />
+			<TextBlock x:Name="InputHint" Margin="0,6,0,0" Opacity="0.7" TextWrapping="Wrap"
+					   Text="Enter — підтвердити введене (порожнє значення — як Enter у консолі)." />
+		</StackPanel>
+
+		<DockPanel Grid.Row="4" Margin="0,20,0,0" LastChildFill="False">
+			<Button x:Name="StopButton"
+					DockPanel.Dock="Left"
+					Content="Зупинити запуск"
+					ToolTip="Перервати виконання аналізу"
+					Click="OnStop" />
+			<Button x:Name="OkButton"
+					DockPanel.Dock="Right"
+					Content="Готово"
+					MinWidth="110"
+					IsDefault="True"
+					Click="OnOk" />
+			<StackPanel x:Name="ChoicePanel" DockPanel.Dock="Right" Orientation="Horizontal" />
+		</DockPanel>
+	</Grid>
+</Window>

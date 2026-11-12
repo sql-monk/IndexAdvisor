@@ -1,0 +1,73 @@
+<UserControl x:Class="IndexAdvisor.Gui.Views.ConfigView"
+			 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+			 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+			 xmlns:avalonEdit="http://icsharpcode.net/sharpdevelop/avalonedit">
+	<UserControl.InputBindings>
+		<KeyBinding Key="S" Modifiers="Control" Command="{Binding SaveCommand}" />
+		<KeyBinding Key="F5" Command="{Binding ValidateCommand}" />
+	</UserControl.InputBindings>
+	<Grid Margin="0,8,0,8">
+		<Grid.RowDefinitions>
+			<RowDefinition Height="Auto" />
+			<RowDefinition Height="Auto" />
+			<RowDefinition Height="*" />
+			<RowDefinition Height="Auto" />
+			<RowDefinition Height="160" MinHeight="60" />
+		</Grid.RowDefinitions>
+
+		<WrapPanel Margin="0,4,0,0">
+			<Button Content="Відкрити…" Command="{Binding OpenCommand}" Margin="0,0,6,0" />
+			<Button Content="Новий з шаблону…" Command="{Binding NewCommand}" Margin="0,0,6,0"
+					ToolTip="New-IaConfigTemplate: усі параметри зі значеннями за замовчуванням і коментарями" />
+			<Button Content="Зберегти" Command="{Binding SaveCommand}" Margin="0,0,6,0" ToolTip="Ctrl+S" />
+			<Button Content="Зберегти як…" Command="{Binding SaveAsCommand}" Margin="0,0,6,0" />
+			<Button Content="Перечитати" Command="{Binding ReloadCommand}" Margin="0,0,18,0" />
+			<Button Content="Перевірити" Command="{Binding ValidateCommand}" Style="{DynamicResource AccentButtonStyle}"
+					ToolTip="Зберегти й перевірити (Test-IaConfig), F5" />
+		</WrapPanel>
+
+		<DockPanel Grid.Row="1" Margin="2,10,0,6">
+			<StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+				<Ellipse Width="9" Height="9" Margin="0,0,8,0" VerticalAlignment="Center"
+						 Fill="{Binding State.Severity, Converter={StaticResource StatusBrush}}" />
+				<TextBlock Text="{Binding State.StatusText}" VerticalAlignment="Center" />
+			</StackPanel>
+			<TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+		</DockPanel>
+
+		<Border Grid.Row="2" BorderThickness="1" CornerRadius="6" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+			<Grid>
+				<avalonEdit:TextEditor x:Name="Editor"
+									   Document="{Binding Document}"
+									   ShowLineNumbers="True"
+									   FontFamily="{StaticResource MonoFont}"
+									   FontSize="13"
+									   Padding="4"
+									   HorizontalScrollBarVisibility="Auto"
+									   VerticalScrollBarVisibility="Auto"
+									   Background="White" />
+				<StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+							Visibility="{Binding FilePath, Converter={StaticResource EmptyToVisible}}">
+					<TextBlock Text="Відкрийте файл конфігурації або створіть новий із шаблону." Opacity="0.6" HorizontalAlignment="Center" />
+					<TextBlock Text="Секрети в YAML не зберігаються — лише посилання secret:Сховище/Секрет або env:ЗМІННА."
+							   Opacity="0.5" Margin="0,6,0,0" HorizontalAlignment="Center" />
+				</StackPanel>
+			</Grid>
+		</Border>
+
+		<GridSplitter Grid.Row="3" Height="6" HorizontalAlignment="Stretch" Background="Transparent" />
+
+		<DockPanel Grid.Row="4">
+			<TextBlock DockPanel.Dock="Top" Text="Помилки перевірки (подвійне клацання — перейти до рядка)" FontWeight="SemiBold" Margin="2,0,0,6" />
+			<ListView x:Name="ErrorList" ItemsSource="{Binding State.Errors}" MouseDoubleClick="OnErrorDoubleClick">
+				<ListView.View>
+					<GridView>
+						<GridViewColumn Header="Рядок" Width="80" DisplayMemberBinding="{Binding Location}" />
+						<GridViewColumn Header="Ключ" Width="260" DisplayMemberBinding="{Binding Path}" />
+						<GridViewColumn Header="Повідомлення" Width="900" DisplayMemberBinding="{Binding Message}" />
+					</GridView>
+				</ListView.View>
+			</ListView>
+		</DockPanel>
+	</Grid>
+</UserControl>

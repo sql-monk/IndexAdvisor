@@ -42,7 +42,9 @@ src/IndexAdvisor/
   Core/  Collector/Queries/  Tools/Definitions/  Llm/Prompts/  Rules/  Output/  Cli/
 sql/Setup-IndexAdvisorLogin.sql, sql/Repository/IndexAdvisor.Repository.sql
 bin/IndexAdvisor.ps1            точка входу CLI з кодами повернення
-tests/<Тека>/*.Tests.ps1, tests/Security/, tests/Fixtures/, tests/TestHelpers.ps1
+src/IndexAdvisor.Gui/           WPF (.NET 10): власний PSHost; викликає Invoke-IndexAdvisor -PassThru, Test-IaConfig, New-IaConfigTemplate,
+                                для підсумку конфігурації — Get-IaConfig і ConvertTo-IaCliOverrides в області модуля; Read-Host -> діалог
+tests/<Тека>/*.Tests.ps1, tests/Security/, tests/Fixtures/, tests/TestHelpers.ps1, tests/Gui/ (xUnit)
 ```
 
 Залежності: `powershell-yaml`, `Microsoft.PowerShell.SecretManagement` (RequiredModules); `dbatools` завантажується ліниво (`Import-Module dbatools`) лише для реальних підключень і скрипта логіна. ScriptDom і Microsoft.Data.SqlClient беруться з `dbatools.library` (`<ModuleBase>/core/lib/`), якщо типи ще не завантажені.

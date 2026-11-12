@@ -158,6 +158,24 @@ pwsh -NoProfile -File .\bin\IndexAdvisor.ps1 -Config D:\IndexAdvisor\run.yaml -N
 
 Кожен звіт показує, за який період роботи сервера зібрано статистику (запуск інстансу, failover, період Query Store), які набори даних зібрано, чи застосовано маскування і які небезпечні режими були ввімкнені.
 
+## Графічний інтерфейс (Windows, .NET)
+
+`src/IndexAdvisor.Gui` — WPF-застосунок на .NET 10 поверх того самого модуля: нічого з логіки аналізу не дублює, а викликає `Invoke-IndexAdvisor`, `Test-IaConfig` і `New-IaConfigTemplate` у вбудованому PowerShell 7.6 (Microsoft.PowerShell.SDK). Окремо встановлений `pwsh` не потрібен; модулі з розділу «Встановлення» — потрібні.
+
+```powershell
+dotnet run --project .\src\IndexAdvisor.Gui                     # з репозиторію (потрібен .NET 10 SDK)
+dotnet publish .\src\IndexAdvisor.Gui -c Release -o D:\IndexAdvisor.Gui   # тека для DBA; запуск — IndexAdvisor.Gui.exe
+.\IndexAdvisor.Gui.exe D:\IndexAdvisor\run.yaml                   # відкрити конфігурацію; тека або result.json — одразу «Результати»
+```
+
+- **Запуск.** Файл YAML перевіряється автоматично, а поля форми показують значення з конфігурації як підказки; заповнене поле перевизначає YAML так само, як параметр CLI. Перемикачі тристанні: «як у конфігурації», `-Switch`, `-Switch:$false`. Небезпечні режими — окремо й з підтвердженням. Внизу форми — готовий командний рядок для сесії PowerShell і для SQL Agent (CmdExec) чи Планувальника завдань (`pwsh -File bin\IndexAdvisor.ps1 ... -NonInteractive`).
+- **Журнал** показує вивід модуля (`Write-Host`, попередження, помилки, `-Verbose`) під час виконання; «Зупинити» перериває конвеєр.
+- **Дозапити моделі.** `Read-Host` модуля відкриває діалог: опис дозапиту (інструмент, сервер, база, аргументи, текст запиту) і кнопки «Підтвердити / Змінити / Відхилити» (або клавіші П/З/В). Так само в діалогах — пароль SecretStore і облікові дані. Без `-NonInteractive` і без автопідтвердження запуск чекає на рішення користувача; кнопка на панелі завдань блимає.
+- **Конфігурація YAML.** Редактор з нумерацією рядків і підсвіткою, «Новий з шаблону» (`New-IaConfigTemplate`), перевірка з переходом до рядка помилки.
+- **Результати.** Запуски з каталогу `output.path` (будь-яка глибина до трьох рівнів): статус і код, період даних, модель і вартість; рекомендації з фільтрами, обґрунтуванням, результатами перевірки, умовами видалення 4.4 і скриптами виконання й відкату (копіювання, збереження); знахідки правил, попередження, нотатки моделі, дозапити; кнопки HTML-звіту й теки запуску. Запуск без формату `Json` показується з пам'яті до закриття програми.
+
+Модуль шукається так: шлях, вибраний унизу вікна → `src\IndexAdvisor` у репозиторії над exe → копія `Modules\IndexAdvisor` поруч з exe (її кладе збірка). Відносні шляхи YAML розв'язуються від теки файлу конфігурації. Політика виконання вбудованого PowerShell — `RemoteSigned` для процесу. Налаштування форми (без секретів і без небезпечних режимів) — у `%APPDATA%\IndexAdvisor\gui-settings.json`.
+
 ## Обслуговування індексів (AdaptiveIndexDefrag)
 
 Програма формує скрипти обслуговування індексів на базі [dbo.usp_AdaptiveIndexDefrag](https://github.com/microsoft/tigertoolbox/tree/master/AdaptiveIndexDefrag) з Microsoft Tiger Toolbox (перевірено з версією 1.7.5). Процедуру DBA встановлює окремо, за замовчуванням у `msdb` (`maintenance.procedureDatabase`).
@@ -226,4 +244,10 @@ $env:IA_TEST_SQL_LOGIN = 'index-advisor'
 $env:IA_TEST_SQL_PASSWORD = Read-Host 'Пароль index-advisor' -MaskInput
 $env:IA_TEST_OUTPUT_PATH = '.\live-out'   # залишити звіти й журнали прогону
 Invoke-Pester -Path .\tests\Integration, .\tests\Core\DbCommand.Integration.Tests.ps1 -TagFilter Integration -Output Detailed
+```
+
+Тести GUI (xUnit: побудова командного рядка, розбір `result.json`, хост PowerShell з діалогами, справжній модуль без серверів і моделі):
+
+```powershell
+dotnet test .\tests\Gui\IndexAdvisor.Gui.Tests
 ```

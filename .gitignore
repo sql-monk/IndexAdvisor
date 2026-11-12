@@ -17,3 +17,11 @@
 /.vscode/
 testResults.xml
 coverage.xml
+
+# Збірка .NET (GUI і його тести)
+/src/IndexAdvisor.Gui/bin/
+/src/IndexAdvisor.Gui/obj/
+/tests/Gui/**/bin/
+/tests/Gui/**/obj/
+/.vs/
+*.user

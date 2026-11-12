@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<OutputType>WinExe</OutputType>
+		<TargetFramework>net10.0-windows</TargetFramework>
+		<UseWPF>true</UseWPF>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<LangVersion>latest</LangVersion>
+		<RootNamespace>IndexAdvisor.Gui</RootNamespace>
+		<AssemblyName>IndexAdvisor.Gui</AssemblyName>
+		<Version>0.1.0</Version>
+		<Product>IndexAdvisor</Product>
+		<Description>Графічна оболонка IndexAdvisor: запуск аналізу, підтвердження дозапитів моделі, перегляд рекомендацій.</Description>
+		<!-- ThemeMode (Fluent) у WPF позначено як експериментальний. -->
+		<NoWarn>$(NoWarn);WPF0001</NoWarn>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- Версія SDK відповідає PowerShell 7.6 (.NET 10). -->
+		<PackageReference Include="Microsoft.PowerShell.SDK" Version="7.6.10" />
+		<PackageReference Include="AvalonEdit" Version="6.3.1.120" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Remove="Views\Yaml.xshd" />
+		<EmbeddedResource Include="Views\Yaml.xshd" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- WPF не додає System.IO до неявних using (конфлікт Path із System.Windows.Shapes). -->
+		<Using Include="System.IO" />
+		<InternalsVisibleTo Include="IndexAdvisor.Gui.Tests" />
+	</ItemGroup>
+
+	<!-- Копія модуля поруч з exe: опублікована тека працює без репозиторію (Modules\IndexAdvisor). -->
+	<ItemGroup>
+		<Content Include="..\IndexAdvisor\**\*" LinkBase="Modules\IndexAdvisor" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
+	</ItemGroup>
+
+</Project>
