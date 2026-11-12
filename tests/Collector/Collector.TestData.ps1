@@ -340,27 +340,50 @@ function Get-ColTestHandlers {
 				New-ColTestRow @{ queryId = 1002; hourUtc = 6; isoDayOfWeek = 7; executionCount = 90; cpuMs = 900000.0; logicalReads = 17280000.0; durationMs = 1200000.0 }
 			)
 		}
-		query_store_plans = {
-			@(
-				New-ColTestRow @{ planId = 2001; queryId = 1001; queryPlanHash = '0xAAAA'; isForced = $false; executionCount = 1200000; avgDurationMs = 0.3; avgCpuMs = 0.2
-					lastExecutionUtc = '2026-11-10T07:59:00.000Z'; queryPlan = $script:ColTestPlans.oltp }
-				New-ColTestRow @{ planId = 2002; queryId = 1002; queryPlanHash = '0xBBBB'; isForced = $false; executionCount = 60; avgDurationMs = 10000.0; avgCpuMs = 9000.0
-					lastExecutionUtc = '2026-10-01T06:00:00.000Z'; queryPlan = $script:ColTestPlans.report }
-				New-ColTestRow @{ planId = 2003; queryId = 1003; queryPlanHash = '0xAAAA'; isForced = $false; executionCount = 50000; avgDurationMs = 0.18; avgCpuMs = 0.1
-					lastExecutionUtc = '2026-11-10T07:30:00.000Z'; queryPlan = $null }
-				New-ColTestRow @{ planId = 2004; queryId = 9999; queryPlanHash = '0xCCCC'; isForced = $false; executionCount = 400000; avgDurationMs = 0.1; avgCpuMs = 0.05
-					lastExecutionUtc = '2026-11-10T07:59:30.000Z'; queryPlan = $script:ColTestPlans.insert }
-				New-ColTestRow @{ planId = 2005; queryId = 9998; queryPlanHash = '0xDDDD'; isForced = $false; executionCount = 10; avgDurationMs = 5.0; avgCpuMs = 4.0
-					lastExecutionUtc = '2026-11-09T10:00:00.000Z'; queryPlan = $script:ColTestPlans.email }
-				New-ColTestRow @{ planId = 2006; queryId = 1002; queryPlanHash = '0xEEEE'; isForced = $false; executionCount = 30; avgDurationMs = 30000.0; avgCpuMs = 25000.0
-					lastExecutionUtc = '2026-11-10T06:00:00.000Z'; queryPlan = $script:ColTestPlans.report }
-			)
+		# Плани Query Store: перелік (keyset за afterPlanId), статистика планів топ-запитів (queryIds), XML пакетами (planIds).
+		query_store_plan_list = {
+			param($call)
+			$after = [long]$call.Parameters.afterPlanId
+			@(Get-ColTestPlanRows | Where-Object { [long]$_.planId -gt $after } | ForEach-Object {
+					New-ColTestRow @{ planId = $_.planId; queryId = $_.queryId; queryPlanHash = $_.queryPlanHash; isForced = $_.isForced; lastExecutionUtc = $_.lastExecutionUtc }
+				})
+		}
+		query_store_plan_stats = {
+			param($call)
+			$ids = [string]$call.Parameters.queryIds
+			@(Get-ColTestPlanRows | Where-Object { $ids.Contains(",$($_.queryId),") } | ForEach-Object {
+					New-ColTestRow @{ planId = $_.planId; executionCount = $_.executionCount; avgDurationMs = $_.avgDurationMs; avgCpuMs = $_.avgCpuMs }
+				})
+		}
+		query_store_plan_xml = {
+			param($call)
+			$ids = [string]$call.Parameters.planIds
+			@(Get-ColTestPlanRows | Where-Object { $ids.Contains(",$($_.planId),") -and [long]$_.planId -ge [long]$call.Parameters.minPlanId -and [long]$_.planId -le [long]$call.Parameters.maxPlanId } |
+					ForEach-Object { New-ColTestRow @{ planId = $_.planId; queryPlan = $_.queryPlan } })
 		}
 		query_store_hint_texts = {
 			@(New-ColTestRow @{ queryId = 1003; queryText = 'SELECT o.OrderId FROM dbo.Orders AS o WITH (INDEX(IX_CustomerId)) WHERE o.CustomerId = @CustomerId' })
 		}
 	}
 	return $handlers
+}
+
+function Get-ColTestPlanRows {
+	<# Плани Query Store фікстури (plan 2003 має той самий hash, що й 2001, і без XML — розбір береться з кешу за hash). #>
+	@(
+		@{ planId = 2001; queryId = 1001; queryPlanHash = '0xAAAA'; isForced = $false; executionCount = 1200000; avgDurationMs = 0.3; avgCpuMs = 0.2
+			lastExecutionUtc = '2026-11-10T07:59:00.000Z'; queryPlan = $script:ColTestPlans.oltp }
+		@{ planId = 2002; queryId = 1002; queryPlanHash = '0xBBBB'; isForced = $false; executionCount = 60; avgDurationMs = 10000.0; avgCpuMs = 9000.0
+			lastExecutionUtc = '2026-10-01T06:00:00.000Z'; queryPlan = $script:ColTestPlans.report }
+		@{ planId = 2003; queryId = 1003; queryPlanHash = '0xAAAA'; isForced = $false; executionCount = 50000; avgDurationMs = 0.18; avgCpuMs = 0.1
+			lastExecutionUtc = '2026-11-10T07:30:00.000Z'; queryPlan = $null }
+		@{ planId = 2004; queryId = 9999; queryPlanHash = '0xCCCC'; isForced = $false; executionCount = 400000; avgDurationMs = 0.1; avgCpuMs = 0.05
+			lastExecutionUtc = '2026-11-10T07:59:30.000Z'; queryPlan = $script:ColTestPlans.insert }
+		@{ planId = 2005; queryId = 9998; queryPlanHash = '0xDDDD'; isForced = $false; executionCount = 10; avgDurationMs = 5.0; avgCpuMs = 4.0
+			lastExecutionUtc = '2026-11-09T10:00:00.000Z'; queryPlan = $script:ColTestPlans.email }
+		@{ planId = 2006; queryId = 1002; queryPlanHash = '0xEEEE'; isForced = $false; executionCount = 30; avgDurationMs = 30000.0; avgCpuMs = 25000.0
+			lastExecutionUtc = '2026-11-10T06:00:00.000Z'; queryPlan = $script:ColTestPlans.report }
+	)
 }
 
 function Get-ColTestIndex {

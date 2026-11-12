@@ -1,7 +1,8 @@
 # Query Store: налаштування й попередження, топ-запити з профілем по годинах і днях тижня, розбір планів,
 # регресії, категорія навантаження, index.queryStoreUsage і хінти в текстах запитів (ТЗ 4.3.1).
 
-$script:IaColQueryStorePlanPageSize = 100
+$script:IaColQueryStorePlanListPageSize = 5000
+$script:IaColQueryStorePlanXmlBatchSize = 50
 $script:IaColHeavyLogicalReads = 10000
 $script:IaColAdHocMaxExecutions = 10
 $script:IaColOltpMinExecutions = 100
@@ -204,6 +205,152 @@ function Add-IaColQueryStorePlanPage {
 	}
 }
 
+function Get-IaColPlanXmlBatch {
+	<# XML showplan для пакета планів. Тайм-аут пакета — поділ навпіл аж до одного плану; один план — повтор з тайм-аутом команди ×4
+	   (гігантський план). Повертає @{ success; rows; error }; помилка — для першого плану, який не вдалося отримати. #>
+	param([Parameter(Mandatory)][hashtable]$DbCtx, [Parameter(Mandatory)][long[]]$Ids, [System.Collections.IDictionary]$Config)
+	$parameters = [ordered]@{
+		planIds = ',' + ($Ids -join ',') + ','
+		minPlanId = [long]($Ids | Measure-Object -Minimum).Minimum
+		maxPlanId = [long]($Ids | Measure-Object -Maximum).Maximum
+	}
+	$splat = @{ DbCtx = $DbCtx; Name = 'query_store_plan_xml'; Parameters = $parameters; PageSize = $Ids.Count }
+	if ($Config) {
+		$splat.Config = $Config
+	}
+	$result = Invoke-IaColDbQuery @splat
+	if ($result.success -or $null -eq $result.error -or [string]$result.error.code -ne 'Timeout') {
+		return $result
+	}
+	if ($Ids.Count -gt 1) {
+		$half = [int][Math]::Ceiling($Ids.Count / 2)
+		$rows = [System.Collections.Generic.List[object]]::new()
+		foreach ($part in @(, @($Ids[0..($half - 1)])) + @(, @($Ids[$half..($Ids.Count - 1)]))) {
+			$partResult = Get-IaColPlanXmlBatch -DbCtx $DbCtx -Ids ([long[]]$part) -Config $Config
+			if (-not $partResult.success) {
+				return $partResult
+			}
+			foreach ($row in @($partResult.rows)) {
+				$rows.Add($row)
+			}
+		}
+		return @{ success = $true; rows = $rows.ToArray(); error = $null }
+	}
+	if ($null -eq $Config) {
+		$Config = Copy-IaObject -InputObject $DbCtx.Config
+		$Config.connection.commandTimeoutSeconds = [Math]::Min(3600, 4 * [int]$DbCtx.Config.connection.commandTimeoutSeconds)
+		$retry = Get-IaColPlanXmlBatch -DbCtx $DbCtx -Ids $Ids -Config $Config
+		if (-not $retry.success -and $retry.error) {
+			$retry.error.message = "XML плану $($Ids[0]) не отримано навіть з тайм-аутом $($Config.connection.commandTimeoutSeconds) с: $($retry.error.message)"
+		}
+		return $retry
+	}
+	return $result
+}
+
+function Add-IaColQueryStorePlans {
+	<# Плани Query Store у три кроки (перелік, статистика топ-запитів, XML за query_plan_hash пакетами) з обробкою через
+	   Add-IaColQueryStorePlanPage. Повертає текст помилки або $null. Бюджет — collector.queryStorePlansTimeBudgetSeconds. #>
+	param([Parameter(Mandatory)][hashtable]$DbCtx, [Parameter(Mandatory)][hashtable]$State)
+	$config = $DbCtx.Config
+	$maxRows = [int]$config.limits.maxRows
+	$budgetSeconds = [int]$(if ($config.collector -and $config.collector.queryStorePlansTimeBudgetSeconds) { $config.collector.queryStorePlansTimeBudgetSeconds } else { 900 })
+	$stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+	$overBudget = { $stopwatch.Elapsed.TotalSeconds -gt $budgetSeconds }
+	$budgetMessage = "бюджет часу collector.queryStorePlansTimeBudgetSeconds ($budgetSeconds с) вичерпано"
+
+	# 1. Перелік планів без XML, keyset за plan_id.
+	$plans = [System.Collections.Generic.List[object]]::new()
+	$afterPlanId = [long]0
+	$pageSize = [Math]::Min($script:IaColQueryStorePlanListPageSize, $maxRows)
+	while ($true) {
+		$page = Invoke-IaColDbQuery -DbCtx $DbCtx -Name 'query_store_plan_list' -Parameters ([ordered]@{ afterPlanId = $afterPlanId }) -PageSize $pageSize -SinglePage
+		if (-not $page.success) {
+			return $page.error.message
+		}
+		$rows = @($page.rows)
+		foreach ($row in $rows) {
+			$plans.Add($row)
+		}
+		if ($rows.Count -lt $pageSize) {
+			break
+		}
+		$afterPlanId = ConvertTo-IaColLong (Get-IaColValue $rows[-1] 'planId')
+		if (& $overBudget) {
+			return $budgetMessage
+		}
+	}
+
+	# 2. Статистика виконання — лише для планів топ-запитів (для деталей планів у queryStoreQueries).
+	$statsByPlan = @{}
+	if ($State.Queries.Count -gt 0) {
+		$queryIds = ',' + (($State.Queries.Keys | ForEach-Object { [string]$_ }) -join ',') + ','
+		$stats = Invoke-IaColDbQuery -DbCtx $DbCtx -Name 'query_store_plan_stats' -Parameters ([ordered]@{ queryIds = $queryIds })
+		if (-not $stats.success) {
+			Add-IaColDbWarning -DbCtx $DbCtx -Code 'DatasetFailed' -Dataset 'queryStore' -Message (
+				"Статистику виконання планів топ-запитів не зібрано: {0}; кількість виконань і тривалість планів невідомі." -f $stats.error.message)
+		}
+		else {
+			foreach ($row in @($stats.rows)) {
+				$statsByPlan[[string](ConvertTo-IaColLong (Get-IaColValue $row 'planId'))] = $row
+			}
+		}
+	}
+	$combine = {
+		param($Row, $Xml)
+		$planKey = [string](ConvertTo-IaColLong (Get-IaColValue $Row 'planId'))
+		$stat = $statsByPlan[$planKey]
+		[ordered]@{
+			planId = Get-IaColValue $Row 'planId'
+			queryId = Get-IaColValue $Row 'queryId'
+			queryPlanHash = Get-IaColValue $Row 'queryPlanHash'
+			isForced = Get-IaColValue $Row 'isForced'
+			lastExecutionUtc = Get-IaColValue $Row 'lastExecutionUtc'
+			executionCount = $(if ($stat) { Get-IaColValue $stat 'executionCount' } else { $null })
+			avgDurationMs = $(if ($stat) { Get-IaColValue $stat 'avgDurationMs' } else { $null })
+			avgCpuMs = $(if ($stat) { Get-IaColValue $stat 'avgCpuMs' } else { $null })
+			queryPlan = $Xml
+		}
+	}
+
+	# 3. XML першого плану кожного query_plan_hash (план без хешу — окремо) пакетами; кожен пакет розбирається одразу.
+	$firstByHash = @{}
+	$xmlPlans = [System.Collections.Generic.List[object]]::new()
+	$others = [System.Collections.Generic.List[object]]::new()
+	foreach ($row in $plans) {
+		$hash = [string](Get-IaColValue $row 'queryPlanHash')
+		if ($hash -and $firstByHash.ContainsKey($hash)) {
+			$others.Add($row)
+			continue
+		}
+		if ($hash) {
+			$firstByHash[$hash] = $true
+		}
+		$xmlPlans.Add($row)
+	}
+	$batchSize = [Math]::Max(1, [Math]::Min($script:IaColQueryStorePlanXmlBatchSize, $maxRows))
+	for ($offset = 0; $offset -lt $xmlPlans.Count; $offset += $batchSize) {
+		$batch = @($xmlPlans[$offset..([Math]::Min($xmlPlans.Count, $offset + $batchSize) - 1)])
+		$ids = [long[]]@($batch | ForEach-Object { ConvertTo-IaColLong (Get-IaColValue $_ 'planId') })
+		$result = Get-IaColPlanXmlBatch -DbCtx $DbCtx -Ids $ids
+		if (-not $result.success) {
+			return $result.error.message
+		}
+		$xmlById = @{}
+		foreach ($row in @($result.rows)) {
+			$xmlById[[string](ConvertTo-IaColLong (Get-IaColValue $row 'planId'))] = [string](Get-IaColValue $row 'queryPlan')
+		}
+		Add-IaColQueryStorePlanPage -Rows @(foreach ($row in $batch) { & $combine $row $xmlById[[string](ConvertTo-IaColLong (Get-IaColValue $row 'planId'))] }) -State $State
+		if (& $overBudget) {
+			return $budgetMessage
+		}
+	}
+
+	# 4. Решта планів — розібраний план беруть з кешу за query_plan_hash.
+	Add-IaColQueryStorePlanPage -Rows @(foreach ($row in $others) { & $combine $row $null }) -State $State
+	return $null
+}
+
 function Add-IaColQueryStore {
 	<# Набір queryStore для бази на primary (або поза AG). Повертає $true, якщо дані запитів і планів зібрано. #>
 	param([Parameter(Mandatory)][hashtable]$DbCtx)
@@ -284,39 +431,11 @@ function Add-IaColQueryStore {
 		ParseErrors = 0
 		Unparsed = 0
 	}
-	$failure = $null
-	$skip = 0
-	$pageSize = [Math]::Min($script:IaColQueryStorePlanPageSize, [int]$config.limits.maxRows)
-	while ($true) {
-		$splat = @{
-			Server = $DbCtx.Server
-			Database = $DbCtx.Name
-			Query = Get-IaColQueryText -Name 'query_store_plans'
-			# Плани — за весь період, що зберігає Query Store (ТЗ 4.3.1: перед видаленням індексу жоден план не використовує його
-			# за весь період спостереження); топ-запити й профілі за годинами — у вікні аналізу.
-			Parameters = [ordered]@{ fromUtc = [datetime]::new(1900, 1, 1, 0, 0, 0, [System.DateTimeKind]::Utc); toUtc = $context.WindowTo }
-			Fetch = $pageSize
-			Skip = $skip
-			Purpose = 'Collector'
-			Config = $config
-		}
-		if ($DbCtx.Intent) {
-			$splat.ApplicationIntent = $DbCtx.Intent
-		}
-		$page = Invoke-IaSqlQuery @splat
-		if ($null -eq $page -or -not $page.success) {
-			$failure = if ($page -and $page.error) { $page.error.message } else { 'порожня відповідь конвеєра' }
-			if ($page -and $page.error -and $page.error.code -eq 'LoginRefused') {
-				Stop-IaColWithError -ErrorId 'IaLoginRefused' -Message $failure -Category PermissionDenied
-			}
-			break
-		}
-		Add-IaColQueryStorePlanPage -Rows @($page.rows) -State $state
-		if (-not $page.truncated) {
-			break
-		}
-		$skip += $pageSize
-	}
+	# Плани — усі, що зберігає Query Store (ТЗ 4.3.1: перед видаленням індексу жоден план не використовує його за весь період
+	# спостереження), тож вибірка не обрізається топ-запитами. Щоб це не впиралося в тайм-аут на великому Query Store, збір — у три
+	# легкі кроки: перелік планів без XML (keyset за plan_id), статистика лише планів топ-запитів, XML лише першого плану кожного
+	# query_plan_hash пакетами. Вичерпаний бюджет часу — як збій: використання індексів у планах невідоме.
+	$failure = Add-IaColQueryStorePlans -DbCtx $DbCtx -State $state
 	if ($failure) {
 		Add-IaColDbWarning -DbCtx $DbCtx -Code 'DatasetFailed' -Dataset 'queryStore' -Message (
 			"Плани Query Store не зібрано: {0}; використання індексів у планах невідоме (queryStoreUsage = null)." -f $failure)

@@ -116,7 +116,8 @@ Describe 'Тексти запитів колектора' {
 	It 'запити великих наборів мають детермінований ORDER BY' -ForEach @(
 		@{ Name = 'tables' }, @{ Name = 'columns' }, @{ Name = 'indexes' }, @{ Name = 'index_columns' }, @{ Name = 'index_usage' }, @{ Name = 'index_operational' },
 		@{ Name = 'partition_stats' }, @{ Name = 'missing_indexes' }, @{ Name = 'missing_index_queries' }, @{ Name = 'foreign_keys' }, @{ Name = 'module_hints' },
-		@{ Name = 'query_store_top_queries' }, @{ Name = 'query_store_time_profile' }, @{ Name = 'query_store_plans' }, @{ Name = 'query_store_hint_texts' }, @{ Name = 'databases' }
+		@{ Name = 'query_store_top_queries' }, @{ Name = 'query_store_time_profile' }, @{ Name = 'query_store_plan_list' }, @{ Name = 'query_store_plan_stats' },
+		@{ Name = 'query_store_plan_xml' }, @{ Name = 'query_store_hint_texts' }, @{ Name = 'databases' }
 	) {
 		$text = & $script:Module { param($n) Get-IaColQueryText -Name $n } $Name
 		$text | Should -Match '(?s)\bORDER BY\b[^;]+;\s*$'

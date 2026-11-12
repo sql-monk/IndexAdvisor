@@ -490,9 +490,76 @@ Describe 'Invoke-IaCollection' {
 			@($sales.tables.indexes).Count | Should -Be 7
 			@($sales.tables.columns).Count | Should -Be 8
 			@(($sales.tables | Where-Object name -EQ 'Orders').indexes.name) | Should -Be @('PK_Orders', 'IX_CustomerId', 'IX_Status', 'NCCI_Orders')
-			@($script:ColCalls | Where-Object Name -EQ 'query_store_plans').Count | Should -Be 3
+			# Перелік планів — keyset (Skip завжди 0, afterPlanId — останній план попередньої сторінки); XML — пакетами по maxRows.
+			$listCalls = @($script:ColCalls | Where-Object Name -EQ 'query_store_plan_list')
+			@($listCalls | ForEach-Object { [long]$_.Parameters.afterPlanId }) | Should -Be @(0, 2002, 2004, 2006)
+			@($listCalls.Skip | Sort-Object -Unique) | Should -Be @(0)
+			@($script:ColCalls | Where-Object Name -EQ 'query_store_plan_xml').Count | Should -Be 3
+			@($script:ColCalls | Where-Object Name -EQ 'query_store_plan_stats').Count | Should -BeGreaterThan 0
 			(Get-ColTestIndex $snapshot 'SQL01' 'Sales' 'Orders' 'IX_CustomerId').queryStoreUsage.planCount | Should -Be 2
 			Test-ColSnapshotSchema -Snapshot $snapshot | Should -BeTrue
+		}
+	}
+
+	Context 'плани Query Store' {
+		It 'збій пакета XML — попередження, використання індексів у планах невідоме (queryStoreUsage = null)' {
+			$handlers = Get-ColTestHandlers -Type Standalone
+			$handlers.query_store_plan_xml = { New-ColTestControl -Fail 'Execution Timeout Expired.' -Code 'Timeout' }
+			Reset-ColTestState -Handlers $handlers
+			$config = Get-IaTestConfig
+			$config.scope.databases.include = @('Sales')
+			$snapshot = Invoke-ColTestCollection -Config $config
+			$warnings = @($snapshot.instances[0].databases[0].warnings | Where-Object { $_.dataset -eq 'queryStore' -and $_.code -eq 'DatasetFailed' })
+			$warnings.message | Should -Match 'Плани Query Store не зібрано: XML плану \d+ не отримано.*Execution Timeout Expired'
+			(Get-ColTestIndex $snapshot 'SQL01' 'Sales' 'Orders' 'IX_CustomerId').queryStoreUsage | Should -BeNullOrEmpty
+			Test-ColSnapshotSchema -Snapshot $snapshot | Should -BeTrue
+		}
+
+		It 'тайм-аут пакета XML — поділ навпіл, плани з меншого пакета збираються' {
+			$handlers = Get-ColTestHandlers -Type Standalone
+			$base = $handlers.query_store_plan_xml
+			$fail = New-ColTestControl -Fail 'Execution Timeout Expired.' -Code 'Timeout'
+			$handlers.query_store_plan_xml = {
+				param($call)
+				$ids = ([string]$call.Parameters.planIds).Trim(',') -split ','
+				if ($ids -contains '2005' -and $ids.Count -gt 1) { return $fail }
+				& $base $call
+			}.GetNewClosure()
+			Reset-ColTestState -Handlers $handlers
+			$config = Get-IaTestConfig
+			$config.scope.databases.include = @('Sales')
+			$snapshot = Invoke-ColTestCollection -Config $config
+			$xmlCalls = @($script:ColCalls | Where-Object Name -EQ 'query_store_plan_xml' | ForEach-Object { ([string]$_.Parameters.planIds).Trim(',') })
+			$xmlCalls | Should -Be @('2001,2002,2004,2005,2006', '2001,2002,2004', '2005,2006', '2005', '2006')
+			(Get-ColTestIndex $snapshot 'SQL01' 'Sales' 'Orders' 'IX_CustomerId').queryStoreUsage.planCount | Should -Be 2
+			@($snapshot.instances[0].databases[0].warnings | Where-Object { $_.code -eq 'DatasetFailed' -and $_.dataset -eq 'queryStore' }).Count | Should -Be 0
+		}
+
+		It 'один план не вдається отримати навіть з більшим тайм-аутом — збій кроку з номером плану, queryStoreUsage = null' {
+			$handlers = Get-ColTestHandlers -Type Standalone
+			$base = $handlers.query_store_plan_xml
+			$fail = New-ColTestControl -Fail 'Execution Timeout Expired.' -Code 'Timeout'
+			$handlers.query_store_plan_xml = {
+				param($call)
+				if (([string]$call.Parameters.planIds).Contains(',2005,')) { return $fail }
+				& $base $call
+			}.GetNewClosure()
+			Reset-ColTestState -Handlers $handlers
+			$config = Get-IaTestConfig
+			$config.scope.databases.include = @('Sales')
+			$snapshot = Invoke-ColTestCollection -Config $config
+			$warning = @($snapshot.instances[0].databases[0].warnings | Where-Object { $_.code -eq 'DatasetFailed' -and $_.dataset -eq 'queryStore' })[0]
+			$warning.message | Should -Match 'XML плану 2005 не отримано навіть з тайм-аутом 120 с'
+			(Get-ColTestIndex $snapshot 'SQL01' 'Sales' 'Orders' 'IX_CustomerId').queryStoreUsage | Should -BeNullOrEmpty
+		}
+
+		It 'XML запитується лише для першого плану кожного query_plan_hash' {
+			Reset-ColTestState -Handlers (Get-ColTestHandlers -Type Standalone)
+			$config = Get-IaTestConfig
+			$config.scope.databases.include = @('Sales')
+			$null = Invoke-ColTestCollection -Config $config
+			$requested = @($script:ColCalls | Where-Object Name -EQ 'query_store_plan_xml' | ForEach-Object { ([string]$_.Parameters.planIds).Trim(',') -split ',' })
+			$requested | Should -Be @('2001', '2002', '2004', '2005', '2006')
 		}
 	}
 

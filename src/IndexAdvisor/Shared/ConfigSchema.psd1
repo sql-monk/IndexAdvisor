@@ -105,6 +105,7 @@
 					)
 				}
 				@{ Name = 'physicalStatsTimeBudgetSeconds'; Type = 'int'; Default = 300; Min = 1; Max = 86400; Description = 'Сумарний ліміт часу на sys.dm_db_index_physical_stats на одну базу, с' }
+				@{ Name = 'queryStorePlansTimeBudgetSeconds'; Type = 'int'; Default = 900; Min = 10; Max = 86400; Description = 'Ліміт часу на збір планів Query Store на одну базу, с (вичерпано — використання індексів у планах невідоме)' }
 				@{ Name = 'queryStoreTopN'; Type = 'int'; Default = 50; Min = 1; Max = 1000; Description = 'Кількість топ-запитів Query Store за кожним критерієм' }
 				@{ Name = 'queryStoreMinFreeSpacePercent'; Type = 'int'; Default = 10; Min = 0; Max = 100; Description = 'Попередження, якщо вільного місця Query Store менше' }
 			)
