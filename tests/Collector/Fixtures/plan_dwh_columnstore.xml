@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-16"?>
+<ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan" Version="1.564" Build="16.0.4135.4">
+	<BatchSequence>
+		<Batch>
+			<Statements>
+				<StmtSimple StatementText="SELECT f.StoreId, SUM(f.Amount) FROM dw.FactSales AS f WHERE f.SaleDate &gt;= @from GROUP BY f.StoreId" StatementId="1" StatementCompId="1" StatementType="SELECT">
+					<QueryPlan CachedPlanSize="64" CompileTime="10" CompileCPU="10" CompileMemory="900">
+						<RelOp NodeId="0" PhysicalOp="Hash Match" LogicalOp="Aggregate" EstimateRows="500" EstimatedExecutionMode="Batch">
+							<OutputList />
+							<Hash>
+								<DefinedValues />
+								<RelOp NodeId="1" PhysicalOp="Columnstore Index Scan" LogicalOp="Clustered Index Scan" EstimateRows="90000000" EstimatedExecutionMode="Batch" Partitioned="1">
+									<OutputList />
+									<IndexScan Ordered="0" ForcedIndex="0" ForceSeek="0" ForceScan="0" NoExpandHint="0" Storage="ColumnStore">
+										<DefinedValues />
+										<Object Database="[DWH]" Schema="[dw]" Table="[FactSales]" Index="[CCSI]" Alias="[f]" IndexKind="Clustered" Storage="ColumnStore" />
+										<SeekPredicates>
+											<SeekPredicateNew>
+												<SeekKeys>
+													<StartRange ScanType="GE">
+														<RangeColumns>
+															<ColumnReference Column="PtnId1000" />
+														</RangeColumns>
+														<RangeExpressions>
+															<ScalarOperator ScalarString="RangePartitionNew([@from],(1),'2026-01-01')">
+																<Const ConstValue="(1)" />
+															</ScalarOperator>
+														</RangeExpressions>
+													</StartRange>
+												</SeekKeys>
+											</SeekPredicateNew>
+										</SeekPredicates>
+										<Predicate>
+											<ScalarOperator>
+												<Compare CompareOp="GE">
+													<ScalarOperator>
+														<Identifier>
+															<ColumnReference Database="[DWH]" Schema="[dw]" Table="[FactSales]" Alias="[f]" Column="SaleDate" />
+														</Identifier>
+													</ScalarOperator>
+													<ScalarOperator>
+														<Identifier>
+															<ColumnReference Column="@from" />
+														</Identifier>
+													</ScalarOperator>
+												</Compare>
+											</ScalarOperator>
+										</Predicate>
+									</IndexScan>
+								</RelOp>
+							</Hash>
+						</RelOp>
+					</QueryPlan>
+				</StmtSimple>
+			</Statements>
+		</Batch>
+	</BatchSequence>
+</ShowPlanXML>

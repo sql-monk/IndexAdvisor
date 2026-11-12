@@ -1,0 +1,32 @@
+{
+	"recommendations": [
+		{
+			"action": "CreateIndex",
+			"target": { "server": "AG1", "database": "Sales", "schema": "dbo", "table": "Orders", "index": "IX_OrderDate_INC" },
+			"title": "Індекс за OrderDate для звіту щоденної виручки",
+			"rationale": "Запит 1002 (dbo.usp_DailyRevenue) щодня сканує PK_Orders (192 000 читань на виконання). Два схожі missing index злито в один.",
+			"risk": { "level": "Low", "description": "Додаткові витрати на запис: ~400 000 вставок за період; розмір ~120 МБ." },
+			"executeScript": "CREATE NONCLUSTERED INDEX [IX_OrderDate_INC] ON [dbo].[Orders] ([OrderDate]) INCLUDE ([Amount], [Status]) WITH (ONLINE = ON, RESUMABLE = ON, DATA_COMPRESSION = PAGE);",
+			"rollbackScript": "DROP INDEX [IX_OrderDate_INC] ON [dbo].[Orders];",
+			"affectedQueryIds": [1002],
+			"replacesIndexes": [],
+			"confidence": "High",
+			"partitioning": null
+		},
+		{
+			"action": "DropIndex",
+			"target": { "server": "AG1", "database": "Sales", "schema": "dbo", "table": "Orders", "index": "IX_Status" },
+			"title": "Видалити невикористовуваний індекс IX_Status",
+			"rationale": "Жодного читання на обох репліках за 70 днів роботи; у Query Store немає планів з цим індексом; 350 000 оновлень.",
+			"risk": { "level": "Medium", "description": "Рідкісні запити за Status можуть сповільнитися." },
+			"executeScript": "DROP INDEX [IX_Status] ON [dbo].[Orders];",
+			"rollbackScript": "CREATE NONCLUSTERED INDEX [IX_Status] ON [dbo].[Orders] ([Status]) WITH (ONLINE = ON);",
+			"affectedQueryIds": [],
+			"replacesIndexes": [],
+			"confidence": "Medium",
+			"partitioning": null
+		}
+	],
+	"toolRequests": [],
+	"notes": "Індекс IX_CustomerId згадується в хінті dbo.usp_GetOrdersByCustomer, тому не рекомендований до видалення."
+}

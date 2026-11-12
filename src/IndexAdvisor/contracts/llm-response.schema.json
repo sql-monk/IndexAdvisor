@@ -1,0 +1,94 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://indexadvisor.local/contracts/llm-response.schema.json",
+	"title": "IndexAdvisor LLM response",
+	"description": "Формат JSON, який модель повертає на кожному кроці. Якщо toolRequests не порожній, програма виконує дозапити після підтвердження користувача і продовжує розмову; recommendations проміжного кроку ігноруються. Цей самий формат чернетки використовує модуль партиціонування (drafts).",
+	"type": "object",
+	"required": ["recommendations", "toolRequests"],
+	"additionalProperties": false,
+	"properties": {
+		"recommendations": { "type": "array", "items": { "$ref": "#/$defs/draft" } },
+		"toolRequests": { "type": "array", "items": { "$ref": "#/$defs/toolRequest" } },
+		"notes": { "type": ["string", "null"] }
+	},
+	"$defs": {
+		"target": {
+			"type": "object",
+			"required": ["server", "database", "schema", "table"],
+			"additionalProperties": false,
+			"properties": {
+				"server": { "type": "string", "description": "Ім'я AG або інстансу, як у контексті" },
+				"database": { "type": "string" },
+				"schema": { "type": "string" },
+				"table": { "type": "string" },
+				"index": { "type": ["string", "null"], "description": "Для CreateIndex — запропоноване ім'я; для партиціонування — null" }
+			}
+		},
+		"draft": {
+			"type": "object",
+			"required": ["action", "target", "title", "rationale", "risk", "executeScript", "rollbackScript"],
+			"additionalProperties": false,
+			"properties": {
+				"action": { "enum": ["CreateIndex", "DropIndex", "AlterIndex", "PartitionTable", "AlterPartitioning"] },
+				"target": { "$ref": "#/$defs/target" },
+				"title": { "type": "string" },
+				"rationale": { "type": "string" },
+				"risk": {
+					"type": "object",
+					"required": ["level", "description"],
+					"additionalProperties": false,
+					"properties": {
+						"level": { "enum": ["Low", "Medium", "High"] },
+						"description": { "type": "string" }
+					}
+				},
+				"executeScript": { "type": "string" },
+				"rollbackScript": { "type": "string" },
+				"affectedQueryIds": { "type": "array", "items": { "type": "integer" } },
+				"replacesIndexes": { "type": "array", "items": { "type": "string" }, "description": "Індекси, які новий індекс робить зайвими; їх видалення — окремі рекомендації DropIndex" },
+				"confidence": { "enum": ["Low", "Medium", "High", null] },
+				"partitioning": { "anyOf": [{ "$ref": "#/$defs/partitioning" }, { "type": "null" }] }
+			}
+		},
+		"partitioning": {
+			"type": "object",
+			"required": ["partitionColumn", "functionScript", "schemeScript", "migrationPlan", "impact", "maintenanceBenefits"],
+			"properties": {
+				"partitionColumn": { "type": "string" },
+				"functionName": { "type": ["string", "null"] },
+				"schemeName": { "type": ["string", "null"] },
+				"functionScript": { "type": "string" },
+				"schemeScript": { "type": "string" },
+				"boundaries": { "type": "array", "items": { "type": "string" } },
+				"migrationPlan": { "type": "array", "items": { "type": "string" } },
+				"impact": {
+					"type": "object",
+					"properties": {
+						"clusteredIndexRebuild": { "type": "string" },
+						"nonAlignedIndexes": { "type": "array", "items": { "type": "string" } },
+						"primaryKeyAndUniqueChanges": { "type": "array", "items": { "type": "string" } },
+						"foreignKeys": { "type": "array", "items": { "type": "string" } },
+						"replication": { "type": "string" },
+						"queriesWithoutPartitionFilter": { "type": "array", "items": { "type": "integer" } }
+					}
+				},
+				"maintenanceBenefits": { "type": "string", "description": "Sliding window (SWITCH, TRUNCATE ... WITH PARTITIONS), архівування, rebuild і статистика по секціях" },
+				"eliminationAssessment": { "type": ["string", "null"] }
+			}
+		},
+		"toolRequest": {
+			"type": "object",
+			"required": ["tool", "arguments", "reason"],
+			"additionalProperties": false,
+			"properties": {
+				"tool": { "type": "string" },
+				"server": { "type": ["string", "null"] },
+				"database": { "type": ["string", "null"] },
+				"arguments": { "type": "object" },
+				"fetch": { "type": ["integer", "null"], "minimum": 0 },
+				"skip": { "type": ["integer", "null"], "minimum": 0 },
+				"reason": { "type": "string" }
+			}
+		}
+	}
+}

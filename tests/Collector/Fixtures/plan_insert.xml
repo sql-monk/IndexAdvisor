@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-16"?>
+<ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan" Version="1.564" Build="16.0.4135.4">
+	<BatchSequence>
+		<Batch>
+			<Statements>
+				<StmtSimple StatementText="INSERT INTO dbo.Orders (CustomerId, OrderDate, Status, Amount) VALUES (@c, @d, @s, @a)" StatementId="1" StatementCompId="1" StatementType="INSERT">
+					<QueryPlan CachedPlanSize="24" CompileTime="1" CompileCPU="1" CompileMemory="200">
+						<RelOp NodeId="0" PhysicalOp="Clustered Index Insert" LogicalOp="Insert" EstimateRows="1" EstimatedExecutionMode="Row">
+							<OutputList />
+							<Update DMLRequestSort="0">
+								<Object Database="[Sales]" Schema="[dbo]" Table="[Orders]" Index="[PK_Orders]" IndexKind="Clustered" Storage="RowStore" />
+								<Object Database="[Sales]" Schema="[dbo]" Table="[Orders]" Index="[IX_CustomerId]" IndexKind="NonClustered" Storage="RowStore" />
+								<RelOp NodeId="1" PhysicalOp="Constant Scan" LogicalOp="Constant Scan" EstimateRows="1" EstimatedExecutionMode="Row">
+									<OutputList />
+									<ConstantScan />
+								</RelOp>
+							</Update>
+						</RelOp>
+					</QueryPlan>
+				</StmtSimple>
+			</Statements>
+		</Batch>
+	</BatchSequence>
+</ShowPlanXML>

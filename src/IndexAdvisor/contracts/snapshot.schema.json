@@ -1,0 +1,509 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://indexadvisor.local/contracts/snapshot.schema.json",
+	"title": "IndexAdvisor snapshot",
+	"description": "Зібрані дані одного запуску для одного запитаного сервера. Усі дати — рядки ISO 8601 UTC. Додаткові поля дозволені, але споживачі покладаються лише на описані тут.",
+	"type": "object",
+	"required": ["schemaVersion", "snapshotId", "toolVersion", "collectedAtUtc", "requestedServer", "analysisWindow", "topology", "datasets", "masking", "instances", "warnings"],
+	"properties": {
+		"schemaVersion": { "const": "1.0" },
+		"snapshotId": { "type": "string" },
+		"toolVersion": { "type": "string" },
+		"collectedAtUtc": { "$ref": "#/$defs/utc" },
+		"requestedServer": { "type": "string" },
+		"analysisWindow": {
+			"type": "object",
+			"required": ["fromUtc", "toUtc", "mode"],
+			"properties": {
+				"fromUtc": { "$ref": "#/$defs/utc" },
+				"toUtc": { "$ref": "#/$defs/utc" },
+				"mode": { "enum": ["Days", "PreviousMonth"] },
+				"reason": { "type": ["string", "null"] }
+			}
+		},
+		"topology": { "$ref": "#/$defs/topology" },
+		"datasets": {
+			"type": "object",
+			"required": ["enabled", "disabled", "warnings"],
+			"properties": {
+				"enabled": { "type": "array", "items": { "$ref": "#/$defs/datasetName" } },
+				"disabled": { "type": "array", "items": { "$ref": "#/$defs/datasetName" } },
+				"warnings": { "type": "array", "items": { "$ref": "#/$defs/warning" } }
+			}
+		},
+		"masking": {
+			"type": "object",
+			"required": ["namesMasked", "literalsMasked"],
+			"properties": {
+				"namesMasked": { "type": "boolean" },
+				"literalsMasked": { "type": "boolean" }
+			}
+		},
+		"instances": { "type": "array", "items": { "$ref": "#/$defs/instance" } },
+		"warnings": { "type": "array", "items": { "$ref": "#/$defs/warning" } }
+	},
+	"$defs": {
+		"utc": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,7})?Z$" },
+		"utcOrNull": { "anyOf": [{ "$ref": "#/$defs/utc" }, { "type": "null" }] },
+		"datasetName": { "enum": ["indexStructure", "instanceStartTime", "usageStats", "operationalStats", "sizeAndFragmentation", "missingIndexes", "queryStore", "constraintsAndReplication"] },
+		"warning": {
+			"type": "object",
+			"required": ["code", "message"],
+			"properties": {
+				"code": { "type": "string" },
+				"message": { "type": "string" },
+				"dataset": { "type": ["string", "null"] },
+				"server": { "type": ["string", "null"] },
+				"database": { "type": ["string", "null"] }
+			}
+		},
+		"stringArray": { "type": "array", "items": { "type": "string" } },
+		"topology": {
+			"type": "object",
+			"required": ["type", "requestedServer", "isHadrEnabled", "isClustered", "availabilityGroups"],
+			"properties": {
+				"type": { "enum": ["Standalone", "FCI", "AG"] },
+				"requestedServer": { "type": "string" },
+				"serverName": { "type": ["string", "null"] },
+				"isHadrEnabled": { "type": "boolean" },
+				"isClustered": { "type": "boolean" },
+				"availabilityGroups": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"required": ["name", "replicas"],
+						"properties": {
+							"name": { "type": "string" },
+							"listenerName": { "type": ["string", "null"] },
+							"replicas": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"required": ["replicaServerName", "role", "secondaryAllowConnections", "isConnected", "collected"],
+									"properties": {
+										"replicaServerName": { "type": "string" },
+										"connectAddress": { "type": ["string", "null"], "description": "Адреса прямого підключення (FQDN з read_only_routing_url/endpoint_url або з домену запитаного сервера чи listener); null — підключення за replicaServerName" },
+										"role": { "enum": ["PRIMARY", "SECONDARY", "RESOLVING", "UNKNOWN"] },
+										"availabilityMode": { "type": ["string", "null"] },
+										"secondaryAllowConnections": { "enum": ["NO", "READ_ONLY", "ALL"] },
+										"isConnected": { "type": "boolean" },
+										"collected": { "type": "boolean" },
+										"skipReason": { "type": ["string", "null"] }
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"instance": {
+			"type": "object",
+			"required": ["serverName", "connectedTo", "productVersion", "edition", "engineEdition", "supportsOnlineIndexOps", "sqlserverStartTimeUtc", "collectedAtUtc", "agRole", "databases", "warnings"],
+			"properties": {
+				"serverName": { "type": "string" },
+				"connectedTo": { "type": "string" },
+				"productVersion": { "type": "string" },
+				"edition": { "type": "string" },
+				"engineEdition": { "type": "integer" },
+				"supportsOnlineIndexOps": { "type": "boolean", "description": "Enterprise, Developer, Evaluation — ONLINE = ON і RESUMABLE = ON доступні" },
+				"sqlserverStartTimeUtc": { "$ref": "#/$defs/utc" },
+				"lastFailoverUtc": { "$ref": "#/$defs/utcOrNull" },
+				"collectedAtUtc": { "$ref": "#/$defs/utc" },
+				"agRole": { "enum": ["PRIMARY", "SECONDARY", null] },
+				"isClustered": { "type": "boolean" },
+				"databases": { "type": "array", "items": { "$ref": "#/$defs/database" } },
+				"warnings": { "type": "array", "items": { "$ref": "#/$defs/warning" } }
+			}
+		},
+		"database": {
+			"type": "object",
+			"required": ["name", "databaseId", "compatibilityLevel", "stateDesc", "isReadOnly", "availabilityGroup", "replicaRole", "replication", "queryStore", "collectedDatasets", "tables", "missingIndexes", "queryStoreQueries", "moduleHints", "warnings"],
+			"properties": {
+				"name": { "type": "string" },
+				"databaseId": { "type": "integer" },
+				"compatibilityLevel": { "type": "integer" },
+				"stateDesc": { "type": "string" },
+				"isReadOnly": { "type": "boolean" },
+				"recoveryModel": { "type": ["string", "null"] },
+				"availabilityGroup": { "type": ["string", "null"] },
+				"replicaRole": { "enum": ["PRIMARY", "SECONDARY", null] },
+				"replication": {
+					"type": ["object", "null"],
+					"description": "null — набір constraintsAndReplication не зібрано",
+					"properties": {
+						"isPublished": { "type": "boolean" },
+						"isMergePublished": { "type": "boolean" },
+						"isSubscribed": { "type": "boolean" },
+						"isDistributor": { "type": "boolean" }
+					}
+				},
+				"queryStore": { "anyOf": [{ "$ref": "#/$defs/queryStoreInfo" }, { "type": "null" }] },
+				"collectedDatasets": { "type": "array", "items": { "$ref": "#/$defs/datasetName" } },
+				"tables": { "type": "array", "items": { "$ref": "#/$defs/table" } },
+				"missingIndexes": { "type": "array", "items": { "$ref": "#/$defs/missingIndex" } },
+				"queryStoreQueries": { "type": "array", "items": { "$ref": "#/$defs/queryStoreQuery" } },
+				"moduleHints": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"required": ["moduleName", "indexName"],
+						"properties": {
+							"moduleName": { "type": "string", "description": "schema.name модуля з sys.sql_modules" },
+							"indexName": { "type": "string" },
+							"tableName": { "type": ["string", "null"] },
+							"hintText": { "type": ["string", "null"] }
+						}
+					}
+				},
+				"warnings": { "type": "array", "items": { "$ref": "#/$defs/warning" } }
+			}
+		},
+		"queryStoreInfo": {
+			"type": "object",
+			"required": ["actualState", "desiredState", "currentStorageSizeMb", "maxStorageSizeMb", "staleQueryThresholdDays", "firstIntervalStartUtc", "lastIntervalEndUtc", "periodDays"],
+			"properties": {
+				"actualState": { "enum": ["OFF", "READ_ONLY", "READ_WRITE", "ERROR"] },
+				"desiredState": { "enum": ["OFF", "READ_ONLY", "READ_WRITE", "ERROR"] },
+				"readOnlyReason": { "type": ["integer", "null"] },
+				"currentStorageSizeMb": { "type": "number" },
+				"maxStorageSizeMb": { "type": "number" },
+				"staleQueryThresholdDays": { "type": "integer" },
+				"queryCaptureMode": { "type": ["string", "null"] },
+				"intervalLengthMinutes": { "type": ["integer", "null"] },
+				"firstIntervalStartUtc": { "$ref": "#/$defs/utcOrNull" },
+				"lastIntervalEndUtc": { "$ref": "#/$defs/utcOrNull" },
+				"periodDays": { "type": "number" },
+				"warnings": { "type": "array", "items": { "$ref": "#/$defs/warning" } }
+			}
+		},
+		"table": {
+			"type": "object",
+			"required": ["objectId", "schema", "name", "type", "isPartitioned", "rowCount", "reservedMb", "columns", "indexes", "foreignKeys"],
+			"properties": {
+				"objectId": { "type": "integer" },
+				"schema": { "type": "string" },
+				"name": { "type": "string" },
+				"type": { "enum": ["USER_TABLE", "VIEW"], "description": "VIEW — індексоване представлення" },
+				"isPartitioned": { "type": "boolean" },
+				"partitionScheme": { "type": ["string", "null"] },
+				"partitionFunction": { "type": ["string", "null"] },
+				"partitionColumn": { "type": ["string", "null"] },
+				"partitionRangeRight": { "type": ["boolean", "null"], "description": "sys.partition_functions.boundary_value_on_right: true — RANGE RIGHT; null — таблиця не секціонована або не зібрано" },
+				"rowCount": { "type": ["integer", "null"] },
+				"reservedMb": { "type": ["number", "null"] },
+				"usedMb": { "type": ["number", "null"] },
+				"isReplicated": { "type": ["boolean", "null"] },
+				"isMemoryOptimized": { "type": "boolean" },
+				"columns": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"required": ["columnId", "name", "typeName", "maxLength", "isNullable"],
+						"properties": {
+							"columnId": { "type": "integer" },
+							"name": { "type": "string" },
+							"typeName": { "type": "string" },
+							"maxLength": { "type": "integer", "description": "байти, -1 для MAX" },
+							"precision": { "type": "integer" },
+							"scale": { "type": "integer" },
+							"isNullable": { "type": "boolean" },
+							"isComputed": { "type": "boolean" },
+							"isIdentity": { "type": "boolean" }
+						}
+					}
+				},
+				"indexes": { "type": "array", "items": { "$ref": "#/$defs/index" } },
+				"foreignKeys": {
+					"type": "array",
+					"description": "FK, визначені на цій таблиці (дочірня сторона)",
+					"items": {
+						"type": "object",
+						"required": ["name", "columns", "referencedSchema", "referencedTable", "referencedColumns"],
+						"properties": {
+							"name": { "type": "string" },
+							"columns": { "$ref": "#/$defs/stringArray" },
+							"referencedSchema": { "type": "string" },
+							"referencedTable": { "type": "string" },
+							"referencedColumns": { "$ref": "#/$defs/stringArray" },
+							"referencedIndexName": { "type": ["string", "null"] },
+							"isDisabled": { "type": "boolean" },
+							"isNotTrusted": { "type": "boolean" }
+						}
+					}
+				}
+			}
+		},
+		"index": {
+			"type": "object",
+			"required": ["indexId", "name", "typeDesc", "isPrimaryKey", "isUnique", "isUniqueConstraint", "isDisabled", "hasFilter", "filterDefinition", "fillFactor", "compression", "dataSpaceName", "dataSpaceType", "keyColumns", "includedColumns", "usage", "operational", "physical", "referencedByForeignKeys", "coversForeignKeys", "usedByReplication", "hintReferences", "queryStoreUsage"],
+			"properties": {
+				"indexId": { "type": "integer" },
+				"name": { "type": ["string", "null"], "description": "null для купи" },
+				"typeDesc": { "type": "string", "description": "sys.indexes.type_desc: HEAP, CLUSTERED, NONCLUSTERED, CLUSTERED COLUMNSTORE, NONCLUSTERED COLUMNSTORE, XML, SPATIAL, ..." },
+				"isPrimaryKey": { "type": "boolean" },
+				"isUnique": { "type": "boolean" },
+				"isUniqueConstraint": { "type": "boolean" },
+				"isDisabled": { "type": "boolean" },
+				"isHypothetical": { "type": "boolean" },
+				"hasFilter": { "type": "boolean" },
+				"filterDefinition": { "type": ["string", "null"] },
+				"fillFactor": { "type": "integer" },
+				"isPadded": { "type": "boolean" },
+				"allowRowLocks": { "type": "boolean" },
+				"allowPageLocks": { "type": "boolean" },
+				"ignoreDupKey": { "type": "boolean" },
+				"compression": { "type": "string", "description": "NONE, ROW, PAGE, COLUMNSTORE, COLUMNSTORE_ARCHIVE або MIXED" },
+				"dataSpaceName": { "type": ["string", "null"] },
+				"dataSpaceType": { "type": ["string", "null"], "description": "ROWS_FILEGROUP або PARTITION_SCHEME" },
+				"partitionColumn": { "type": ["string", "null"] },
+				"isAligned": { "type": ["boolean", "null"] },
+				"keyColumns": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"required": ["name", "keyOrdinal", "isDescending"],
+						"properties": {
+							"name": { "type": "string" },
+							"keyOrdinal": { "type": "integer" },
+							"isDescending": { "type": "boolean" }
+						}
+					}
+				},
+				"includedColumns": { "$ref": "#/$defs/stringArray" },
+				"rowCount": { "type": ["integer", "null"] },
+				"usedMb": { "type": ["number", "null"] },
+				"reservedMb": { "type": ["number", "null"] },
+				"partitions": {
+					"type": ["array", "null"],
+					"items": {
+						"type": "object",
+						"required": ["partitionNumber", "rowCount"],
+						"properties": {
+							"partitionNumber": { "type": "integer" },
+							"rowCount": { "type": "integer" },
+							"usedMb": { "type": ["number", "null"] },
+							"reservedMb": { "type": ["number", "null"] },
+							"compression": { "type": ["string", "null"] },
+							"boundaryValue": { "type": ["string", "null"] }
+						}
+					}
+				},
+				"statsLastUpdatedUtc": { "$ref": "#/$defs/utcOrNull" },
+				"lastRebuildUtc": { "$ref": "#/$defs/utcOrNull" },
+				"usage": {
+					"type": ["object", "null"],
+					"description": "null — набір usageStats не зібрано; нулі — рядка в DMV немає",
+					"required": ["userSeeks", "userScans", "userLookups", "userUpdates"],
+					"properties": {
+						"userSeeks": { "type": "integer" },
+						"userScans": { "type": "integer" },
+						"userLookups": { "type": "integer" },
+						"userUpdates": { "type": "integer" },
+						"lastUserSeekUtc": { "$ref": "#/$defs/utcOrNull" },
+						"lastUserScanUtc": { "$ref": "#/$defs/utcOrNull" },
+						"lastUserLookupUtc": { "$ref": "#/$defs/utcOrNull" },
+						"lastUserUpdateUtc": { "$ref": "#/$defs/utcOrNull" }
+					}
+				},
+				"operational": {
+					"type": ["object", "null"],
+					"required": ["leafInsertCount", "leafUpdateCount", "leafDeleteCount", "leafPageSplitCount", "rowLockWaitCount", "rowLockWaitMs", "pageLockWaitCount", "pageLockWaitMs", "pageLatchWaitCount", "pageLatchWaitMs", "pageIoLatchWaitMs", "lockEscalationCount"],
+					"properties": {
+						"leafInsertCount": { "type": "integer" },
+						"leafUpdateCount": { "type": "integer" },
+						"leafDeleteCount": { "type": "integer" },
+						"leafPageSplitCount": { "type": "integer", "description": "leaf_allocation_count" },
+						"nonleafPageSplitCount": { "type": "integer" },
+						"rowLockWaitCount": { "type": "integer" },
+						"rowLockWaitMs": { "type": "integer" },
+						"pageLockWaitCount": { "type": "integer" },
+						"pageLockWaitMs": { "type": "integer" },
+						"pageLatchWaitCount": { "type": "integer" },
+						"pageLatchWaitMs": { "type": "integer" },
+						"pageIoLatchWaitCount": { "type": "integer" },
+						"pageIoLatchWaitMs": { "type": "integer" },
+						"lockEscalationCount": { "type": "integer", "description": "index_lock_promotion_count" }
+					}
+				},
+				"physical": {
+					"type": ["object", "null"],
+					"required": ["avgFragmentationPercent", "pageCount", "skipped"],
+					"properties": {
+						"avgFragmentationPercent": { "type": ["number", "null"] },
+						"pageCount": { "type": ["integer", "null"] },
+						"fragmentCount": { "type": ["integer", "null"] },
+						"mode": { "const": "LIMITED" },
+						"skipped": { "type": "boolean" },
+						"skipReason": { "type": ["string", "null"] }
+					}
+				},
+				"referencedByForeignKeys": { "type": ["array", "null"], "items": { "type": "string" }, "description": "FK інших таблиць, що спираються на цей унікальний індекс (sys.foreign_keys.key_index_id). null — не зібрано" },
+				"coversForeignKeys": { "type": ["array", "null"], "items": { "type": "string" }, "description": "FK цієї таблиці, чиї колонки є провідними ключовими колонками індексу. null — не зібрано" },
+				"usedByReplication": { "type": ["boolean", "null"], "description": "null — не зібрано" },
+				"hintReferences": {
+					"type": ["array", "null"],
+					"items": {
+						"type": "object",
+						"required": ["source"],
+						"properties": {
+							"source": { "enum": ["SqlModule", "QueryStore"] },
+							"objectName": { "type": ["string", "null"] },
+							"queryId": { "type": ["integer", "null"] }
+						}
+					}
+				},
+				"queryStoreUsage": {
+					"type": ["object", "null"],
+					"description": "Похідне з розбору планів Query Store за вікно аналізу. null — Query Store не зібрано",
+					"required": ["planCount", "queryIds"],
+					"properties": {
+						"planCount": { "type": "integer" },
+						"queryIds": { "type": "array", "items": { "type": "integer" } },
+						"seekCount": { "type": "integer" },
+						"scanCount": { "type": "integer" },
+						"lookupCount": { "type": "integer" },
+						"lastUsedUtc": { "$ref": "#/$defs/utcOrNull" }
+					}
+				}
+			}
+		},
+		"missingIndex": {
+			"type": "object",
+			"required": ["indexHandle", "schema", "table", "equalityColumns", "inequalityColumns", "includedColumns", "userSeeks", "userScans", "avgTotalUserCost", "avgUserImpact"],
+			"properties": {
+				"indexHandle": { "type": "integer" },
+				"groupHandle": { "type": ["integer", "null"] },
+				"schema": { "type": "string" },
+				"table": { "type": "string" },
+				"objectId": { "type": ["integer", "null"] },
+				"equalityColumns": { "$ref": "#/$defs/stringArray" },
+				"inequalityColumns": { "$ref": "#/$defs/stringArray" },
+				"includedColumns": { "$ref": "#/$defs/stringArray" },
+				"userSeeks": { "type": "integer" },
+				"userScans": { "type": "integer" },
+				"avgTotalUserCost": { "type": "number" },
+				"avgUserImpact": { "type": "number" },
+				"lastUserSeekUtc": { "$ref": "#/$defs/utcOrNull" },
+				"uniqueCompiles": { "type": ["integer", "null"] },
+				"queryHashes": { "$ref": "#/$defs/stringArray" }
+			}
+		},
+		"queryStoreQuery": {
+			"type": "object",
+			"required": ["queryId", "queryHash", "queryText", "executionCount", "totalCpuMs", "totalLogicalReads", "totalDurationMs", "planCount", "workloadCategory", "plans"],
+			"properties": {
+				"queryId": { "type": "integer" },
+				"queryHash": { "type": "string" },
+				"objectName": { "type": ["string", "null"] },
+				"queryText": { "type": "string" },
+				"executionCount": { "type": "integer" },
+				"totalCpuMs": { "type": "number" },
+				"totalLogicalReads": { "type": "number" },
+				"totalDurationMs": { "type": "number" },
+				"avgCpuMs": { "type": "number" },
+				"avgLogicalReads": { "type": "number" },
+				"avgDurationMs": { "type": "number" },
+				"planCount": { "type": "integer" },
+				"firstExecutionUtc": { "$ref": "#/$defs/utcOrNull" },
+				"lastExecutionUtc": { "$ref": "#/$defs/utcOrNull" },
+				"topBy": { "type": "array", "items": { "enum": ["Cpu", "LogicalReads", "Duration", "Executions"] } },
+				"byHour": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"required": ["hour", "executionCount"],
+						"properties": {
+							"hour": { "type": "integer", "minimum": 0, "maximum": 23 },
+							"executionCount": { "type": "integer" },
+							"cpuMs": { "type": "number" },
+							"logicalReads": { "type": "number" },
+							"durationMs": { "type": "number" }
+						}
+					}
+				},
+				"byDayOfWeek": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"required": ["dayOfWeek", "executionCount"],
+						"properties": {
+							"dayOfWeek": { "type": "integer", "minimum": 1, "maximum": 7, "description": "ISO: 1 — понеділок" },
+							"executionCount": { "type": "integer" },
+							"cpuMs": { "type": "number" },
+							"logicalReads": { "type": "number" },
+							"durationMs": { "type": "number" }
+						}
+					}
+				},
+				"workloadCategory": { "enum": ["Etl", "Report", "AdHoc", "Oltp", "Unknown"] },
+				"hasRegression": { "type": "boolean" },
+				"plans": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"required": ["planId", "indexOperations", "missingIndexes", "hasKeyLookup", "hasImplicitConversion", "usesBatchMode"],
+						"properties": {
+							"planId": { "type": "integer" },
+							"isForced": { "type": "boolean" },
+							"executionCount": { "type": "integer" },
+							"avgDurationMs": { "type": "number" },
+							"avgCpuMs": { "type": "number" },
+							"lastExecutionUtc": { "$ref": "#/$defs/utcOrNull" },
+							"indexOperations": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"required": ["schema", "table", "index", "operation"],
+									"properties": {
+										"database": { "type": ["string", "null"] },
+										"schema": { "type": "string" },
+										"table": { "type": "string" },
+										"index": { "type": "string" },
+										"operation": { "enum": ["Seek", "Scan", "Lookup", "Update"] },
+										"executionMode": { "enum": ["Row", "Batch", null] },
+										"isHinted": { "type": "boolean", "description": "ForcedIndex / FORCESEEK у плані" }
+									}
+								}
+							},
+							"missingIndexes": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"required": ["schema", "table", "equalityColumns", "inequalityColumns", "includedColumns"],
+									"properties": {
+										"schema": { "type": "string" },
+										"table": { "type": "string" },
+										"equalityColumns": { "$ref": "#/$defs/stringArray" },
+										"inequalityColumns": { "$ref": "#/$defs/stringArray" },
+										"includedColumns": { "$ref": "#/$defs/stringArray" },
+										"impact": { "type": ["number", "null"] }
+									}
+								}
+							},
+							"predicates": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"required": ["schema", "table", "column", "operator"],
+									"properties": {
+										"schema": { "type": "string" },
+										"table": { "type": "string" },
+										"column": { "type": "string" },
+										"operator": { "enum": ["Eq", "Range", "Like", "In", "Other"] }
+									}
+								}
+							},
+							"hasKeyLookup": { "type": "boolean" },
+							"hasImplicitConversion": { "type": "boolean" },
+							"usesBatchMode": { "type": "boolean" },
+							"scansWholeTable": { "type": ["boolean", "null"] },
+							"partitionElimination": { "enum": ["Yes", "No", "NotApplicable", "Unknown"] },
+							"columnstoreSegmentElimination": { "enum": ["Yes", "No", "NotApplicable", "Unknown"] }
+						}
+					}
+				}
+			}
+		}
+	}
+}

@@ -1,0 +1,146 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://indexadvisor.local/contracts/recommendation.schema.json",
+	"title": "IndexAdvisor recommendation",
+	"description": "Канонічна рекомендація (New-IaRecommendation у Shared/Contracts.ps1). Зберігається в репозиторії, показується у звітах.",
+	"type": "object",
+	"required": ["recommendationId", "runId", "module", "action", "source", "target", "title", "rationale", "risk", "impact", "executeScript", "rollbackScript", "dataPeriod", "dropEligibility", "validation", "crossCheck", "llm", "warnings", "createdAtUtc"],
+	"properties": {
+		"recommendationId": { "type": "string" },
+		"runId": { "type": "string" },
+		"module": { "enum": ["Indexes", "Partitioning"] },
+		"action": { "enum": ["CreateIndex", "DropIndex", "AlterIndex", "PartitionTable", "AlterPartitioning"] },
+		"source": { "enum": ["Llm", "Rules"] },
+		"target": {
+			"type": "object",
+			"required": ["server", "database", "schema", "table", "index", "objectKey"],
+			"properties": {
+				"server": { "type": "string" },
+				"database": { "type": "string" },
+				"schema": { "type": "string" },
+				"table": { "type": "string" },
+				"index": { "type": ["string", "null"] },
+				"objectKey": { "type": "string" }
+			}
+		},
+		"title": { "type": "string" },
+		"rationale": { "type": "string" },
+		"risk": {
+			"type": "object",
+			"required": ["level", "description"],
+			"properties": {
+				"level": { "enum": ["Low", "Medium", "High"] },
+				"description": { "type": "string" }
+			}
+		},
+		"impact": {
+			"type": "object",
+			"properties": {
+				"estimatedSizeMb": { "type": ["number", "null"] },
+				"estimatedBuildMinutes": { "type": ["number", "null"] },
+				"tableWritesPerDay": { "type": ["number", "null"] },
+				"affectedQueryIds": { "type": "array", "items": { "type": "integer" } },
+				"notes": { "type": ["string", "null"] }
+			}
+		},
+		"executeScript": { "type": "string" },
+		"rollbackScript": { "type": "string" },
+		"replacesIndexes": { "type": "array", "items": { "type": "string" } },
+		"partitioning": { "type": ["object", "null"] },
+		"confidence": { "enum": ["Low", "Medium", "High", null] },
+		"dataPeriod": { "anyOf": [{ "$ref": "#/$defs/dataPeriod" }, { "type": "null" }] },
+		"dropEligibility": { "anyOf": [{ "$ref": "#/$defs/dropEligibility" }, { "type": "null" }] },
+		"validation": {
+			"type": "object",
+			"required": ["status", "checks"],
+			"properties": {
+				"status": { "enum": ["Passed", "Failed", "Warning", "NotValidated"] },
+				"checks": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"required": ["id", "status", "message"],
+						"properties": {
+							"id": { "enum": ["ObjectsExist", "NotDuplicate", "DropAllowed", "SyntaxValid", "RollbackMatches", "PlatformLimits", "EditionFeatures", "PartitionAlignment", "SafeScript"] },
+							"status": { "enum": ["Passed", "Failed", "Warning", "Skipped"] },
+							"message": { "type": "string" }
+						}
+					}
+				}
+			}
+		},
+		"crossCheck": {
+			"type": ["object", "null"],
+			"properties": {
+				"provider": { "type": "string" },
+				"model": { "type": "string" },
+				"verdict": { "enum": ["Agree", "Disagree", "Uncertain"] },
+				"notes": { "type": ["string", "null"] },
+				"llmCallId": { "type": ["string", "null"] }
+			}
+		},
+		"llm": {
+			"type": ["object", "null"],
+			"properties": {
+				"provider": { "type": "string" },
+				"model": { "type": "string" },
+				"promptTemplateId": { "type": "string" },
+				"promptTemplateVersion": { "type": "integer" },
+				"llmCallIds": { "type": "array", "items": { "type": "string" } }
+			}
+		},
+		"warnings": { "type": "array", "items": { "type": "string" } },
+		"createdAtUtc": { "type": "string" }
+	},
+	"$defs": {
+		"dataPeriod": {
+			"type": "object",
+			"required": ["server", "database", "sqlserverStartTimeUtc", "lastFailoverUtc", "statsFromUtc", "statsToUtc", "uptimeDays", "queryStoreFromUtc", "queryStoreToUtc", "queryStoreDays", "minRequiredDays", "isSufficient", "warnings"],
+			"properties": {
+				"server": { "type": "string" },
+				"database": { "type": ["string", "null"] },
+				"sqlserverStartTimeUtc": { "type": "string" },
+				"lastFailoverUtc": { "type": ["string", "null"] },
+				"lastRebuildUtc": { "type": ["string", "null"] },
+				"statsFromUtc": { "type": "string", "description": "max(sqlserverStartTimeUtc, lastFailoverUtc, lastRebuildUtc)" },
+				"statsToUtc": { "type": "string" },
+				"uptimeDays": { "type": "number", "description": "statsToUtc - statsFromUtc, днів" },
+				"queryStoreFromUtc": { "type": ["string", "null"] },
+				"queryStoreToUtc": { "type": ["string", "null"] },
+				"queryStoreDays": { "type": ["number", "null"] },
+				"minRequiredDays": { "type": "integer" },
+				"isSufficient": { "type": "boolean" },
+				"warnings": { "type": "array", "items": { "type": "string" } }
+			}
+		},
+		"dropEligibility": {
+			"type": "object",
+			"required": ["rulesProfile", "relaxedReason", "requiredConsecutive", "consecutiveCount", "missingConfirmations", "minIntervalDays", "minUptimeDays", "countsTowardSeries", "notCountedReason", "conditions", "isEligible", "warning"],
+			"properties": {
+				"rulesProfile": { "enum": ["Standard", "Relaxed"] },
+				"relaxedReason": { "type": ["string", "null"] },
+				"requiredConsecutive": { "type": "integer" },
+				"consecutiveCount": { "type": "integer", "description": "Зараховані аналізи поспіль, включно з поточним, якщо він зараховується" },
+				"missingConfirmations": { "type": "integer" },
+				"minIntervalDays": { "type": "integer" },
+				"minUptimeDays": { "type": "integer" },
+				"countsTowardSeries": { "type": "boolean" },
+				"notCountedReason": { "type": ["string", "null"] },
+				"conditions": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"required": ["id", "met", "details"],
+						"properties": {
+							"id": { "enum": ["ConsecutiveSeries", "MinUptimePeriod", "MinInterval", "AnalysisWindow", "NotPrimaryKey", "NotUnique", "NoForeignKeySupport", "NotReplicated", "NoHintReferences", "NotUsedInQueryStore", "CheckedOnAllReplicas"] },
+							"met": { "type": ["boolean", "null"], "description": "null — невідомо (набір даних не зібрано), вважається невиконаною" },
+							"details": { "type": "string" }
+						}
+					}
+				},
+				"isEligible": { "type": "boolean" },
+				"warning": { "type": ["string", "null"] }
+			}
+		}
+	}
+}

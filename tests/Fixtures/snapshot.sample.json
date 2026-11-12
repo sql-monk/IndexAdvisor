@@ -1,0 +1,378 @@
+{
+	"schemaVersion": "1.0",
+	"snapshotId": "5f0c1a2b-3c4d-4e5f-8a9b-0c1d2e3f4a5b",
+	"toolVersion": "0.1.0",
+	"collectedAtUtc": "2026-11-10T08:00:00.000Z",
+	"requestedServer": "AGL-SALES",
+	"analysisWindow": { "fromUtc": "2026-10-11T08:00:00.000Z", "toUtc": "2026-11-10T08:00:00.000Z", "mode": "Days", "reason": "analysisWindow.days = 30" },
+	"topology": {
+		"type": "AG",
+		"requestedServer": "AGL-SALES",
+		"serverName": "SQL01",
+		"isHadrEnabled": true,
+		"isClustered": false,
+		"availabilityGroups": [
+			{
+				"name": "AG1",
+				"listenerName": "AGL-SALES",
+				"replicas": [
+					{ "replicaServerName": "SQL01", "role": "PRIMARY", "availabilityMode": "SYNCHRONOUS_COMMIT", "secondaryAllowConnections": "ALL", "isConnected": true, "collected": true, "skipReason": null },
+					{ "replicaServerName": "SQL02", "role": "SECONDARY", "availabilityMode": "SYNCHRONOUS_COMMIT", "secondaryAllowConnections": "ALL", "isConnected": true, "collected": true, "skipReason": null }
+				]
+			}
+		]
+	},
+	"datasets": {
+		"enabled": ["indexStructure", "instanceStartTime", "usageStats", "operationalStats", "sizeAndFragmentation", "missingIndexes", "queryStore", "constraintsAndReplication"],
+		"disabled": [],
+		"warnings": []
+	},
+	"masking": { "namesMasked": false, "literalsMasked": false },
+	"instances": [
+		{
+			"serverName": "SQL01",
+			"connectedTo": "SQL01",
+			"productVersion": "16.0.4135.4",
+			"edition": "Enterprise Edition: Core-based Licensing (64-bit)",
+			"engineEdition": 3,
+			"supportsOnlineIndexOps": true,
+			"sqlserverStartTimeUtc": "2026-09-01T03:00:00.000Z",
+			"lastFailoverUtc": null,
+			"collectedAtUtc": "2026-11-10T08:00:00.000Z",
+			"agRole": "PRIMARY",
+			"isClustered": false,
+			"warnings": [],
+			"databases": [
+				{
+					"name": "Sales",
+					"databaseId": 5,
+					"compatibilityLevel": 160,
+					"stateDesc": "ONLINE",
+					"isReadOnly": false,
+					"recoveryModel": "FULL",
+					"availabilityGroup": "AG1",
+					"replicaRole": "PRIMARY",
+					"replication": { "isPublished": false, "isMergePublished": false, "isSubscribed": false, "isDistributor": false },
+					"queryStore": {
+						"actualState": "READ_WRITE",
+						"desiredState": "READ_WRITE",
+						"readOnlyReason": 0,
+						"currentStorageSizeMb": 1000,
+						"maxStorageSizeMb": 2048,
+						"staleQueryThresholdDays": 90,
+						"queryCaptureMode": "AUTO",
+						"intervalLengthMinutes": 60,
+						"firstIntervalStartUtc": "2026-08-12T00:00:00.000Z",
+						"lastIntervalEndUtc": "2026-11-10T08:00:00.000Z",
+						"periodDays": 90.33,
+						"warnings": []
+					},
+					"collectedDatasets": ["indexStructure", "instanceStartTime", "usageStats", "operationalStats", "sizeAndFragmentation", "missingIndexes", "queryStore", "constraintsAndReplication"],
+					"tables": [
+						{
+							"objectId": 101,
+							"schema": "dbo",
+							"name": "Customers",
+							"type": "USER_TABLE",
+							"isPartitioned": false,
+							"partitionScheme": null,
+							"partitionFunction": null,
+							"partitionColumn": null,
+							"rowCount": 200000,
+							"reservedMb": 64.5,
+							"usedMb": 60.1,
+							"isReplicated": false,
+							"isMemoryOptimized": false,
+							"columns": [
+								{ "columnId": 1, "name": "CustomerId", "typeName": "int", "maxLength": 4, "precision": 10, "scale": 0, "isNullable": false, "isComputed": false, "isIdentity": true },
+								{ "columnId": 2, "name": "Email", "typeName": "nvarchar", "maxLength": 512, "precision": 0, "scale": 0, "isNullable": false, "isComputed": false, "isIdentity": false },
+								{ "columnId": 3, "name": "Name", "typeName": "nvarchar", "maxLength": 400, "precision": 0, "scale": 0, "isNullable": false, "isComputed": false, "isIdentity": false },
+								{ "columnId": 4, "name": "CreatedAt", "typeName": "datetime2", "maxLength": 8, "precision": 27, "scale": 7, "isNullable": false, "isComputed": false, "isIdentity": false }
+							],
+							"indexes": [
+								{
+									"indexId": 1, "name": "PK_Customers", "typeDesc": "CLUSTERED", "isPrimaryKey": true, "isUnique": true, "isUniqueConstraint": false, "isDisabled": false, "isHypothetical": false,
+									"hasFilter": false, "filterDefinition": null, "fillFactor": 0, "isPadded": false, "allowRowLocks": true, "allowPageLocks": true, "ignoreDupKey": false, "compression": "PAGE",
+									"dataSpaceName": "PRIMARY", "dataSpaceType": "ROWS_FILEGROUP", "partitionColumn": null, "isAligned": null,
+									"keyColumns": [{ "name": "CustomerId", "keyOrdinal": 1, "isDescending": false }], "includedColumns": [],
+									"rowCount": 200000, "usedMb": 55.0, "reservedMb": 58.0, "partitions": [{ "partitionNumber": 1, "rowCount": 200000, "usedMb": 55.0, "reservedMb": 58.0, "compression": "PAGE", "boundaryValue": null }],
+									"statsLastUpdatedUtc": "2026-11-01T01:00:00.000Z", "lastRebuildUtc": null,
+									"usage": { "userSeeks": 1500000, "userScans": 40, "userLookups": 0, "userUpdates": 2000, "lastUserSeekUtc": "2026-11-10T07:59:00.000Z", "lastUserScanUtc": "2026-11-09T23:00:00.000Z", "lastUserLookupUtc": null, "lastUserUpdateUtc": "2026-11-10T07:50:00.000Z" },
+									"operational": { "leafInsertCount": 2000, "leafUpdateCount": 300, "leafDeleteCount": 0, "leafPageSplitCount": 10, "nonleafPageSplitCount": 0, "rowLockWaitCount": 0, "rowLockWaitMs": 0, "pageLockWaitCount": 0, "pageLockWaitMs": 0, "pageLatchWaitCount": 3, "pageLatchWaitMs": 5, "pageIoLatchWaitCount": 20, "pageIoLatchWaitMs": 150, "lockEscalationCount": 0 },
+									"physical": { "avgFragmentationPercent": 2.5, "pageCount": 7040, "fragmentCount": 30, "mode": "LIMITED", "skipped": false, "skipReason": null },
+									"referencedByForeignKeys": ["FK_Orders_Customers"], "coversForeignKeys": [], "usedByReplication": false, "hintReferences": [],
+									"queryStoreUsage": { "planCount": 4, "queryIds": [1001], "seekCount": 4, "scanCount": 0, "lookupCount": 0, "lastUsedUtc": "2026-11-10T07:00:00.000Z" }
+								},
+								{
+									"indexId": 2, "name": "UQ_Customers_Email", "typeDesc": "NONCLUSTERED", "isPrimaryKey": false, "isUnique": true, "isUniqueConstraint": true, "isDisabled": false, "isHypothetical": false,
+									"hasFilter": false, "filterDefinition": null, "fillFactor": 0, "isPadded": false, "allowRowLocks": true, "allowPageLocks": true, "ignoreDupKey": false, "compression": "NONE",
+									"dataSpaceName": "PRIMARY", "dataSpaceType": "ROWS_FILEGROUP", "partitionColumn": null, "isAligned": null,
+									"keyColumns": [{ "name": "Email", "keyOrdinal": 1, "isDescending": false }], "includedColumns": [],
+									"rowCount": 200000, "usedMb": 9.0, "reservedMb": 9.5, "partitions": [{ "partitionNumber": 1, "rowCount": 200000, "usedMb": 9.0, "reservedMb": 9.5, "compression": "NONE", "boundaryValue": null }],
+									"statsLastUpdatedUtc": "2026-11-01T01:00:00.000Z", "lastRebuildUtc": null,
+									"usage": { "userSeeks": 0, "userScans": 0, "userLookups": 0, "userUpdates": 2000, "lastUserSeekUtc": null, "lastUserScanUtc": null, "lastUserLookupUtc": null, "lastUserUpdateUtc": "2026-11-10T07:50:00.000Z" },
+									"operational": { "leafInsertCount": 2000, "leafUpdateCount": 0, "leafDeleteCount": 0, "leafPageSplitCount": 40, "nonleafPageSplitCount": 0, "rowLockWaitCount": 0, "rowLockWaitMs": 0, "pageLockWaitCount": 0, "pageLockWaitMs": 0, "pageLatchWaitCount": 0, "pageLatchWaitMs": 0, "pageIoLatchWaitCount": 2, "pageIoLatchWaitMs": 10, "lockEscalationCount": 0 },
+									"physical": { "avgFragmentationPercent": 35.0, "pageCount": 1150, "fragmentCount": 400, "mode": "LIMITED", "skipped": false, "skipReason": null },
+									"referencedByForeignKeys": [], "coversForeignKeys": [], "usedByReplication": false, "hintReferences": [],
+									"queryStoreUsage": { "planCount": 0, "queryIds": [], "seekCount": 0, "scanCount": 0, "lookupCount": 0, "lastUsedUtc": null }
+								}
+							],
+							"foreignKeys": []
+						},
+						{
+							"objectId": 201,
+							"schema": "dbo",
+							"name": "Orders",
+							"type": "USER_TABLE",
+							"isPartitioned": false,
+							"partitionScheme": null,
+							"partitionFunction": null,
+							"partitionColumn": null,
+							"rowCount": 5000000,
+							"reservedMb": 2100.0,
+							"usedMb": 2050.0,
+							"isReplicated": false,
+							"isMemoryOptimized": false,
+							"columns": [
+								{ "columnId": 1, "name": "OrderId", "typeName": "bigint", "maxLength": 8, "precision": 19, "scale": 0, "isNullable": false, "isComputed": false, "isIdentity": true },
+								{ "columnId": 2, "name": "CustomerId", "typeName": "int", "maxLength": 4, "precision": 10, "scale": 0, "isNullable": false, "isComputed": false, "isIdentity": false },
+								{ "columnId": 3, "name": "OrderDate", "typeName": "datetime2", "maxLength": 8, "precision": 27, "scale": 7, "isNullable": false, "isComputed": false, "isIdentity": false },
+								{ "columnId": 4, "name": "Status", "typeName": "tinyint", "maxLength": 1, "precision": 3, "scale": 0, "isNullable": false, "isComputed": false, "isIdentity": false },
+								{ "columnId": 5, "name": "Amount", "typeName": "decimal", "maxLength": 9, "precision": 18, "scale": 2, "isNullable": false, "isComputed": false, "isIdentity": false },
+								{ "columnId": 6, "name": "Comment", "typeName": "nvarchar", "maxLength": 800, "precision": 0, "scale": 0, "isNullable": true, "isComputed": false, "isIdentity": false }
+							],
+							"indexes": [
+								{
+									"indexId": 1, "name": "PK_Orders", "typeDesc": "CLUSTERED", "isPrimaryKey": true, "isUnique": true, "isUniqueConstraint": false, "isDisabled": false, "isHypothetical": false,
+									"hasFilter": false, "filterDefinition": null, "fillFactor": 0, "isPadded": false, "allowRowLocks": true, "allowPageLocks": true, "ignoreDupKey": false, "compression": "PAGE",
+									"dataSpaceName": "PRIMARY", "dataSpaceType": "ROWS_FILEGROUP", "partitionColumn": null, "isAligned": null,
+									"keyColumns": [{ "name": "OrderId", "keyOrdinal": 1, "isDescending": false }], "includedColumns": [],
+									"rowCount": 5000000, "usedMb": 1500.0, "reservedMb": 1520.0, "partitions": [{ "partitionNumber": 1, "rowCount": 5000000, "usedMb": 1500.0, "reservedMb": 1520.0, "compression": "PAGE", "boundaryValue": null }],
+									"statsLastUpdatedUtc": "2026-11-05T01:00:00.000Z", "lastRebuildUtc": null,
+									"usage": { "userSeeks": 900000, "userScans": 120, "userLookups": 0, "userUpdates": 400000, "lastUserSeekUtc": "2026-11-10T07:59:00.000Z", "lastUserScanUtc": "2026-11-10T06:00:00.000Z", "lastUserLookupUtc": null, "lastUserUpdateUtc": "2026-11-10T07:59:30.000Z" },
+									"operational": { "leafInsertCount": 400000, "leafUpdateCount": 50000, "leafDeleteCount": 0, "leafPageSplitCount": 3000, "nonleafPageSplitCount": 10, "rowLockWaitCount": 5, "rowLockWaitMs": 300, "pageLockWaitCount": 1, "pageLockWaitMs": 40, "pageLatchWaitCount": 100, "pageLatchWaitMs": 900, "pageIoLatchWaitCount": 5000, "pageIoLatchWaitMs": 40000, "lockEscalationCount": 0 },
+									"physical": { "avgFragmentationPercent": 4.0, "pageCount": 192000, "fragmentCount": 900, "mode": "LIMITED", "skipped": false, "skipReason": null },
+									"referencedByForeignKeys": [], "coversForeignKeys": [], "usedByReplication": false, "hintReferences": [],
+									"queryStoreUsage": { "planCount": 3, "queryIds": [1002], "seekCount": 0, "scanCount": 3, "lookupCount": 0, "lastUsedUtc": "2026-11-10T06:00:00.000Z" }
+								},
+								{
+									"indexId": 2, "name": "IX_CustomerId", "typeDesc": "NONCLUSTERED", "isPrimaryKey": false, "isUnique": false, "isUniqueConstraint": false, "isDisabled": false, "isHypothetical": false,
+									"hasFilter": false, "filterDefinition": null, "fillFactor": 0, "isPadded": false, "allowRowLocks": true, "allowPageLocks": true, "ignoreDupKey": false, "compression": "NONE",
+									"dataSpaceName": "PRIMARY", "dataSpaceType": "ROWS_FILEGROUP", "partitionColumn": null, "isAligned": null,
+									"keyColumns": [{ "name": "CustomerId", "keyOrdinal": 1, "isDescending": false }], "includedColumns": [],
+									"rowCount": 5000000, "usedMb": 90.0, "reservedMb": 92.0, "partitions": [{ "partitionNumber": 1, "rowCount": 5000000, "usedMb": 90.0, "reservedMb": 92.0, "compression": "NONE", "boundaryValue": null }],
+									"statsLastUpdatedUtc": "2026-11-05T01:00:00.000Z", "lastRebuildUtc": null,
+									"usage": { "userSeeks": 50000, "userScans": 0, "userLookups": 0, "userUpdates": 400000, "lastUserSeekUtc": "2026-11-10T07:30:00.000Z", "lastUserScanUtc": null, "lastUserLookupUtc": null, "lastUserUpdateUtc": "2026-11-10T07:59:30.000Z" },
+									"operational": { "leafInsertCount": 400000, "leafUpdateCount": 0, "leafDeleteCount": 0, "leafPageSplitCount": 8000, "nonleafPageSplitCount": 20, "rowLockWaitCount": 0, "rowLockWaitMs": 0, "pageLockWaitCount": 0, "pageLockWaitMs": 0, "pageLatchWaitCount": 200, "pageLatchWaitMs": 1200, "pageIoLatchWaitCount": 300, "pageIoLatchWaitMs": 2500, "lockEscalationCount": 0 },
+									"physical": { "avgFragmentationPercent": 41.0, "pageCount": 11500, "fragmentCount": 4200, "mode": "LIMITED", "skipped": false, "skipReason": null },
+									"referencedByForeignKeys": [], "coversForeignKeys": ["FK_Orders_Customers"], "usedByReplication": false,
+									"hintReferences": [{ "source": "SqlModule", "objectName": "dbo.usp_GetOrdersByCustomer", "queryId": null }, { "source": "QueryStore", "objectName": null, "queryId": 1003 }],
+									"queryStoreUsage": { "planCount": 1, "queryIds": [1003], "seekCount": 1, "scanCount": 0, "lookupCount": 0, "lastUsedUtc": "2026-11-10T07:30:00.000Z" }
+								},
+								{
+									"indexId": 3, "name": "IX_CustomerId_OrderDate_INC", "typeDesc": "NONCLUSTERED", "isPrimaryKey": false, "isUnique": false, "isUniqueConstraint": false, "isDisabled": false, "isHypothetical": false,
+									"hasFilter": false, "filterDefinition": null, "fillFactor": 0, "isPadded": false, "allowRowLocks": true, "allowPageLocks": true, "ignoreDupKey": false, "compression": "NONE",
+									"dataSpaceName": "PRIMARY", "dataSpaceType": "ROWS_FILEGROUP", "partitionColumn": null, "isAligned": null,
+									"keyColumns": [{ "name": "CustomerId", "keyOrdinal": 1, "isDescending": false }, { "name": "OrderDate", "keyOrdinal": 2, "isDescending": false }], "includedColumns": ["Amount"],
+									"rowCount": 5000000, "usedMb": 180.0, "reservedMb": 184.0, "partitions": [{ "partitionNumber": 1, "rowCount": 5000000, "usedMb": 180.0, "reservedMb": 184.0, "compression": "NONE", "boundaryValue": null }],
+									"statsLastUpdatedUtc": "2026-11-05T01:00:00.000Z", "lastRebuildUtc": null,
+									"usage": { "userSeeks": 120000, "userScans": 0, "userLookups": 0, "userUpdates": 400000, "lastUserSeekUtc": "2026-11-10T07:59:00.000Z", "lastUserScanUtc": null, "lastUserLookupUtc": null, "lastUserUpdateUtc": "2026-11-10T07:59:30.000Z" },
+									"operational": { "leafInsertCount": 400000, "leafUpdateCount": 0, "leafDeleteCount": 0, "leafPageSplitCount": 9000, "nonleafPageSplitCount": 25, "rowLockWaitCount": 0, "rowLockWaitMs": 0, "pageLockWaitCount": 0, "pageLockWaitMs": 0, "pageLatchWaitCount": 250, "pageLatchWaitMs": 1500, "pageIoLatchWaitCount": 400, "pageIoLatchWaitMs": 3000, "lockEscalationCount": 0 },
+									"physical": { "avgFragmentationPercent": 12.0, "pageCount": 23000, "fragmentCount": 2100, "mode": "LIMITED", "skipped": false, "skipReason": null },
+									"referencedByForeignKeys": [], "coversForeignKeys": ["FK_Orders_Customers"], "usedByReplication": false, "hintReferences": [],
+									"queryStoreUsage": { "planCount": 2, "queryIds": [1001], "seekCount": 2, "scanCount": 0, "lookupCount": 0, "lastUsedUtc": "2026-11-10T07:59:00.000Z" }
+								},
+								{
+									"indexId": 4, "name": "IX_Status", "typeDesc": "NONCLUSTERED", "isPrimaryKey": false, "isUnique": false, "isUniqueConstraint": false, "isDisabled": false, "isHypothetical": false,
+									"hasFilter": false, "filterDefinition": null, "fillFactor": 0, "isPadded": false, "allowRowLocks": true, "allowPageLocks": true, "ignoreDupKey": false, "compression": "NONE",
+									"dataSpaceName": "PRIMARY", "dataSpaceType": "ROWS_FILEGROUP", "partitionColumn": null, "isAligned": null,
+									"keyColumns": [{ "name": "Status", "keyOrdinal": 1, "isDescending": false }], "includedColumns": [],
+									"rowCount": 5000000, "usedMb": 70.0, "reservedMb": 72.0, "partitions": [{ "partitionNumber": 1, "rowCount": 5000000, "usedMb": 70.0, "reservedMb": 72.0, "compression": "NONE", "boundaryValue": null }],
+									"statsLastUpdatedUtc": "2026-11-05T01:00:00.000Z", "lastRebuildUtc": null,
+									"usage": { "userSeeks": 0, "userScans": 0, "userLookups": 0, "userUpdates": 350000, "lastUserSeekUtc": null, "lastUserScanUtc": null, "lastUserLookupUtc": null, "lastUserUpdateUtc": "2026-11-10T07:59:30.000Z" },
+									"operational": { "leafInsertCount": 400000, "leafUpdateCount": 50000, "leafDeleteCount": 0, "leafPageSplitCount": 6000, "nonleafPageSplitCount": 15, "rowLockWaitCount": 3, "rowLockWaitMs": 200, "pageLockWaitCount": 0, "pageLockWaitMs": 0, "pageLatchWaitCount": 150, "pageLatchWaitMs": 1000, "pageIoLatchWaitCount": 100, "pageIoLatchWaitMs": 800, "lockEscalationCount": 0 },
+									"physical": { "avgFragmentationPercent": 38.0, "pageCount": 9000, "fragmentCount": 3000, "mode": "LIMITED", "skipped": false, "skipReason": null },
+									"referencedByForeignKeys": [], "coversForeignKeys": [], "usedByReplication": false, "hintReferences": [],
+									"queryStoreUsage": { "planCount": 0, "queryIds": [], "seekCount": 0, "scanCount": 0, "lookupCount": 0, "lastUsedUtc": null }
+								},
+								{
+									"indexId": 5, "name": "IX_Comment", "typeDesc": "NONCLUSTERED", "isPrimaryKey": false, "isUnique": false, "isUniqueConstraint": false, "isDisabled": false, "isHypothetical": false,
+									"hasFilter": false, "filterDefinition": null, "fillFactor": 0, "isPadded": false, "allowRowLocks": true, "allowPageLocks": true, "ignoreDupKey": false, "compression": "NONE",
+									"dataSpaceName": "PRIMARY", "dataSpaceType": "ROWS_FILEGROUP", "partitionColumn": null, "isAligned": null,
+									"keyColumns": [{ "name": "Comment", "keyOrdinal": 1, "isDescending": false }], "includedColumns": [],
+									"rowCount": 5000000, "usedMb": 600.0, "reservedMb": 610.0, "partitions": [{ "partitionNumber": 1, "rowCount": 5000000, "usedMb": 600.0, "reservedMb": 610.0, "compression": "NONE", "boundaryValue": null }],
+									"statsLastUpdatedUtc": "2026-11-05T01:00:00.000Z", "lastRebuildUtc": null,
+									"usage": { "userSeeks": 12, "userScans": 0, "userLookups": 0, "userUpdates": 420000, "lastUserSeekUtc": "2026-10-02T10:00:00.000Z", "lastUserScanUtc": null, "lastUserLookupUtc": null, "lastUserUpdateUtc": "2026-11-10T07:59:30.000Z" },
+									"operational": { "leafInsertCount": 400000, "leafUpdateCount": 60000, "leafDeleteCount": 0, "leafPageSplitCount": 52000, "nonleafPageSplitCount": 300, "rowLockWaitCount": 1800, "rowLockWaitMs": 250000, "pageLockWaitCount": 90, "pageLockWaitMs": 30000, "pageLatchWaitCount": 4000, "pageLatchWaitMs": 90000, "pageIoLatchWaitCount": 900, "pageIoLatchWaitMs": 12000, "lockEscalationCount": 2 },
+									"physical": { "avgFragmentationPercent": 77.0, "pageCount": 76800, "fragmentCount": 60000, "mode": "LIMITED", "skipped": false, "skipReason": null },
+									"referencedByForeignKeys": [], "coversForeignKeys": [], "usedByReplication": false, "hintReferences": [],
+									"queryStoreUsage": { "planCount": 0, "queryIds": [], "seekCount": 0, "scanCount": 0, "lookupCount": 0, "lastUsedUtc": null }
+								},
+								{
+									"indexId": 6, "name": "IX_CustomerId_OrderDate_0", "typeDesc": "NONCLUSTERED", "isPrimaryKey": false, "isUnique": false, "isUniqueConstraint": false, "isDisabled": false, "isHypothetical": false,
+									"hasFilter": false, "filterDefinition": null, "fillFactor": 0, "isPadded": false, "allowRowLocks": true, "allowPageLocks": true, "ignoreDupKey": false, "compression": "NONE",
+									"dataSpaceName": "PRIMARY", "dataSpaceType": "ROWS_FILEGROUP", "partitionColumn": null, "isAligned": null,
+									"keyColumns": [{ "name": "CustomerId", "keyOrdinal": 1, "isDescending": false }, { "name": "OrderDate", "keyOrdinal": 2, "isDescending": false }], "includedColumns": [],
+									"rowCount": 5000000, "usedMb": 150.0, "reservedMb": 152.0, "partitions": [{ "partitionNumber": 1, "rowCount": 5000000, "usedMb": 150.0, "reservedMb": 152.0, "compression": "NONE", "boundaryValue": null }],
+									"statsLastUpdatedUtc": "2026-11-05T01:00:00.000Z", "lastRebuildUtc": null,
+									"usage": { "userSeeks": 30, "userScans": 0, "userLookups": 0, "userUpdates": 400000, "lastUserSeekUtc": "2026-10-20T12:00:00.000Z", "lastUserScanUtc": null, "lastUserLookupUtc": null, "lastUserUpdateUtc": "2026-11-10T07:59:30.000Z" },
+									"operational": { "leafInsertCount": 400000, "leafUpdateCount": 0, "leafDeleteCount": 0, "leafPageSplitCount": 8500, "nonleafPageSplitCount": 22, "rowLockWaitCount": 0, "rowLockWaitMs": 0, "pageLockWaitCount": 0, "pageLockWaitMs": 0, "pageLatchWaitCount": 220, "pageLatchWaitMs": 1300, "pageIoLatchWaitCount": 350, "pageIoLatchWaitMs": 2700, "lockEscalationCount": 0 },
+									"physical": { "avgFragmentationPercent": 15.0, "pageCount": 19200, "fragmentCount": 2000, "mode": "LIMITED", "skipped": false, "skipReason": null },
+									"referencedByForeignKeys": [], "coversForeignKeys": ["FK_Orders_Customers"], "usedByReplication": false, "hintReferences": [],
+									"queryStoreUsage": { "planCount": 0, "queryIds": [], "seekCount": 0, "scanCount": 0, "lookupCount": 0, "lastUsedUtc": null }
+								}
+							],
+							"foreignKeys": [
+								{ "name": "FK_Orders_Customers", "columns": ["CustomerId"], "referencedSchema": "dbo", "referencedTable": "Customers", "referencedColumns": ["CustomerId"], "referencedIndexName": "PK_Customers", "isDisabled": false, "isNotTrusted": false }
+							]
+						}
+					],
+					"missingIndexes": [
+						{ "indexHandle": 11, "groupHandle": 12, "schema": "dbo", "table": "Orders", "objectId": 201, "equalityColumns": [], "inequalityColumns": ["OrderDate"], "includedColumns": ["Amount"], "userSeeks": 4300, "userScans": 0, "avgTotalUserCost": 85.2, "avgUserImpact": 97.1, "lastUserSeekUtc": "2026-11-10T06:00:00.000Z", "uniqueCompiles": 3, "queryHashes": ["0x1A2B3C4D5E6F7081"] },
+						{ "indexHandle": 13, "groupHandle": 14, "schema": "dbo", "table": "Orders", "objectId": 201, "equalityColumns": [], "inequalityColumns": ["OrderDate"], "includedColumns": ["Amount", "Status"], "userSeeks": 900, "userScans": 0, "avgTotalUserCost": 80.0, "avgUserImpact": 95.5, "lastUserSeekUtc": "2026-11-09T06:00:00.000Z", "uniqueCompiles": 1, "queryHashes": [] }
+					],
+					"queryStoreQueries": [
+						{
+							"queryId": 1001, "queryHash": "0x00AA11BB22CC33DD", "objectName": null,
+							"queryText": "SELECT o.OrderId, o.Amount FROM dbo.Orders AS o WHERE o.CustomerId = @customerId AND o.OrderDate >= '2026-10-01'",
+							"executionCount": 1200000, "totalCpuMs": 240000, "totalLogicalReads": 6000000, "totalDurationMs": 360000, "avgCpuMs": 0.2, "avgLogicalReads": 5, "avgDurationMs": 0.3, "planCount": 1,
+							"firstExecutionUtc": "2026-08-12T00:10:00.000Z", "lastExecutionUtc": "2026-11-10T07:59:00.000Z", "topBy": ["Executions", "Cpu"],
+							"byHour": [{ "hour": 9, "executionCount": 150000, "cpuMs": 30000, "logicalReads": 750000, "durationMs": 45000 }],
+							"byDayOfWeek": [{ "dayOfWeek": 1, "executionCount": 200000, "cpuMs": 40000, "logicalReads": 1000000, "durationMs": 60000 }],
+							"workloadCategory": "Oltp", "hasRegression": false,
+							"plans": [
+								{
+									"planId": 2001, "isForced": false, "executionCount": 1200000, "avgDurationMs": 0.3, "avgCpuMs": 0.2, "lastExecutionUtc": "2026-11-10T07:59:00.000Z",
+									"indexOperations": [{ "database": "Sales", "schema": "dbo", "table": "Orders", "index": "IX_CustomerId_OrderDate_INC", "operation": "Seek", "executionMode": "Row", "isHinted": false }],
+									"missingIndexes": [], "predicates": [{ "schema": "dbo", "table": "Orders", "column": "CustomerId", "operator": "Eq" }, { "schema": "dbo", "table": "Orders", "column": "OrderDate", "operator": "Range" }],
+									"hasKeyLookup": false, "hasImplicitConversion": false, "usesBatchMode": false, "scansWholeTable": false, "partitionElimination": "NotApplicable", "columnstoreSegmentElimination": "NotApplicable"
+								}
+							]
+						},
+						{
+							"queryId": 1002, "queryHash": "0x1A2B3C4D5E6F7081", "objectName": "dbo.usp_DailyRevenue",
+							"queryText": "SELECT CAST(o.OrderDate AS date) AS d, SUM(o.Amount) FROM dbo.Orders AS o WHERE o.OrderDate >= @from GROUP BY CAST(o.OrderDate AS date)",
+							"executionCount": 90, "totalCpuMs": 900000, "totalLogicalReads": 17280000, "totalDurationMs": 1200000, "avgCpuMs": 10000, "avgLogicalReads": 192000, "avgDurationMs": 13333, "planCount": 1,
+							"firstExecutionUtc": "2026-08-12T06:00:00.000Z", "lastExecutionUtc": "2026-11-10T06:00:00.000Z", "topBy": ["Cpu", "LogicalReads", "Duration"],
+							"byHour": [{ "hour": 6, "executionCount": 90, "cpuMs": 900000, "logicalReads": 17280000, "durationMs": 1200000 }],
+							"byDayOfWeek": [{ "dayOfWeek": 1, "executionCount": 13, "cpuMs": 130000, "logicalReads": 2496000, "durationMs": 173000 }],
+							"workloadCategory": "Report", "hasRegression": false,
+							"plans": [
+								{
+									"planId": 2002, "isForced": false, "executionCount": 90, "avgDurationMs": 13333, "avgCpuMs": 10000, "lastExecutionUtc": "2026-11-10T06:00:00.000Z",
+									"indexOperations": [{ "database": "Sales", "schema": "dbo", "table": "Orders", "index": "PK_Orders", "operation": "Scan", "executionMode": "Row", "isHinted": false }],
+									"missingIndexes": [{ "schema": "dbo", "table": "Orders", "equalityColumns": [], "inequalityColumns": ["OrderDate"], "includedColumns": ["Amount"], "impact": 97.1 }],
+									"predicates": [{ "schema": "dbo", "table": "Orders", "column": "OrderDate", "operator": "Range" }],
+									"hasKeyLookup": false, "hasImplicitConversion": false, "usesBatchMode": false, "scansWholeTable": true, "partitionElimination": "NotApplicable", "columnstoreSegmentElimination": "NotApplicable"
+								}
+							]
+						},
+						{
+							"queryId": 1003, "queryHash": "0x7788990011223344", "objectName": "dbo.usp_GetOrdersByCustomer",
+							"queryText": "SELECT o.OrderId, o.Status FROM dbo.Orders AS o WITH (INDEX(IX_CustomerId)) WHERE o.CustomerId = @CustomerId",
+							"executionCount": 50000, "totalCpuMs": 5000, "totalLogicalReads": 400000, "totalDurationMs": 9000, "avgCpuMs": 0.1, "avgLogicalReads": 8, "avgDurationMs": 0.18, "planCount": 1,
+							"firstExecutionUtc": "2026-08-12T00:00:00.000Z", "lastExecutionUtc": "2026-11-10T07:30:00.000Z", "topBy": ["Executions"],
+							"byHour": [{ "hour": 10, "executionCount": 5000, "cpuMs": 500, "logicalReads": 40000, "durationMs": 900 }],
+							"byDayOfWeek": [{ "dayOfWeek": 2, "executionCount": 8000, "cpuMs": 800, "logicalReads": 64000, "durationMs": 1440 }],
+							"workloadCategory": "Oltp", "hasRegression": false,
+							"plans": [
+								{
+									"planId": 2003, "isForced": false, "executionCount": 50000, "avgDurationMs": 0.18, "avgCpuMs": 0.1, "lastExecutionUtc": "2026-11-10T07:30:00.000Z",
+									"indexOperations": [
+										{ "database": "Sales", "schema": "dbo", "table": "Orders", "index": "IX_CustomerId", "operation": "Seek", "executionMode": "Row", "isHinted": true },
+										{ "database": "Sales", "schema": "dbo", "table": "Orders", "index": "PK_Orders", "operation": "Lookup", "executionMode": "Row", "isHinted": false }
+									],
+									"missingIndexes": [], "predicates": [{ "schema": "dbo", "table": "Orders", "column": "CustomerId", "operator": "Eq" }],
+									"hasKeyLookup": true, "hasImplicitConversion": false, "usesBatchMode": false, "scansWholeTable": false, "partitionElimination": "NotApplicable", "columnstoreSegmentElimination": "NotApplicable"
+								}
+							]
+						}
+					],
+					"moduleHints": [
+						{ "moduleName": "dbo.usp_GetOrdersByCustomer", "indexName": "IX_CustomerId", "tableName": "dbo.Orders", "hintText": "WITH (INDEX(IX_CustomerId))" }
+					],
+					"warnings": []
+				}
+			]
+		},
+		{
+			"serverName": "SQL02",
+			"connectedTo": "SQL02",
+			"productVersion": "16.0.4135.4",
+			"edition": "Enterprise Edition: Core-based Licensing (64-bit)",
+			"engineEdition": 3,
+			"supportsOnlineIndexOps": true,
+			"sqlserverStartTimeUtc": "2026-10-25T02:00:00.000Z",
+			"lastFailoverUtc": null,
+			"collectedAtUtc": "2026-11-10T08:01:00.000Z",
+			"agRole": "SECONDARY",
+			"isClustered": false,
+			"warnings": [],
+			"databases": [
+				{
+					"name": "Sales",
+					"databaseId": 5,
+					"compatibilityLevel": 160,
+					"stateDesc": "ONLINE",
+					"isReadOnly": false,
+					"recoveryModel": "FULL",
+					"availabilityGroup": "AG1",
+					"replicaRole": "SECONDARY",
+					"replication": { "isPublished": false, "isMergePublished": false, "isSubscribed": false, "isDistributor": false },
+					"queryStore": null,
+					"collectedDatasets": ["indexStructure", "instanceStartTime", "usageStats", "operationalStats", "constraintsAndReplication"],
+					"tables": [
+						{
+							"objectId": 201,
+							"schema": "dbo",
+							"name": "Orders",
+							"type": "USER_TABLE",
+							"isPartitioned": false,
+							"partitionScheme": null,
+							"partitionFunction": null,
+							"partitionColumn": null,
+							"rowCount": null,
+							"reservedMb": null,
+							"usedMb": null,
+							"isReplicated": false,
+							"isMemoryOptimized": false,
+							"columns": [],
+							"indexes": [
+								{
+									"indexId": 4, "name": "IX_Status", "typeDesc": "NONCLUSTERED", "isPrimaryKey": false, "isUnique": false, "isUniqueConstraint": false, "isDisabled": false, "isHypothetical": false,
+									"hasFilter": false, "filterDefinition": null, "fillFactor": 0, "isPadded": false, "allowRowLocks": true, "allowPageLocks": true, "ignoreDupKey": false, "compression": "NONE",
+									"dataSpaceName": "PRIMARY", "dataSpaceType": "ROWS_FILEGROUP", "partitionColumn": null, "isAligned": null,
+									"keyColumns": [{ "name": "Status", "keyOrdinal": 1, "isDescending": false }], "includedColumns": [],
+									"rowCount": null, "usedMb": null, "reservedMb": null, "partitions": null, "statsLastUpdatedUtc": null, "lastRebuildUtc": null,
+									"usage": { "userSeeks": 0, "userScans": 0, "userLookups": 0, "userUpdates": 0, "lastUserSeekUtc": null, "lastUserScanUtc": null, "lastUserLookupUtc": null, "lastUserUpdateUtc": null },
+									"operational": { "leafInsertCount": 0, "leafUpdateCount": 0, "leafDeleteCount": 0, "leafPageSplitCount": 0, "nonleafPageSplitCount": 0, "rowLockWaitCount": 0, "rowLockWaitMs": 0, "pageLockWaitCount": 0, "pageLockWaitMs": 0, "pageLatchWaitCount": 0, "pageLatchWaitMs": 0, "pageIoLatchWaitCount": 0, "pageIoLatchWaitMs": 0, "lockEscalationCount": 0 },
+									"physical": null,
+									"referencedByForeignKeys": [], "coversForeignKeys": [], "usedByReplication": false, "hintReferences": [],
+									"queryStoreUsage": null
+								},
+								{
+									"indexId": 5, "name": "IX_Comment", "typeDesc": "NONCLUSTERED", "isPrimaryKey": false, "isUnique": false, "isUniqueConstraint": false, "isDisabled": false, "isHypothetical": false,
+									"hasFilter": false, "filterDefinition": null, "fillFactor": 0, "isPadded": false, "allowRowLocks": true, "allowPageLocks": true, "ignoreDupKey": false, "compression": "NONE",
+									"dataSpaceName": "PRIMARY", "dataSpaceType": "ROWS_FILEGROUP", "partitionColumn": null, "isAligned": null,
+									"keyColumns": [{ "name": "Comment", "keyOrdinal": 1, "isDescending": false }], "includedColumns": [],
+									"rowCount": null, "usedMb": null, "reservedMb": null, "partitions": null, "statsLastUpdatedUtc": null, "lastRebuildUtc": null,
+									"usage": { "userSeeks": 0, "userScans": 3, "userLookups": 0, "userUpdates": 0, "lastUserSeekUtc": null, "lastUserScanUtc": "2026-11-02T09:00:00.000Z", "lastUserLookupUtc": null, "lastUserUpdateUtc": null },
+									"operational": { "leafInsertCount": 0, "leafUpdateCount": 0, "leafDeleteCount": 0, "leafPageSplitCount": 0, "nonleafPageSplitCount": 0, "rowLockWaitCount": 0, "rowLockWaitMs": 0, "pageLockWaitCount": 0, "pageLockWaitMs": 0, "pageLatchWaitCount": 0, "pageLatchWaitMs": 0, "pageIoLatchWaitCount": 10, "pageIoLatchWaitMs": 90, "lockEscalationCount": 0 },
+									"physical": null,
+									"referencedByForeignKeys": [], "coversForeignKeys": [], "usedByReplication": false, "hintReferences": [],
+									"queryStoreUsage": null
+								}
+							],
+							"foreignKeys": []
+						}
+					],
+					"missingIndexes": [],
+					"queryStoreQueries": [],
+					"moduleHints": [],
+					"warnings": [{ "code": "QueryStoreOnPrimaryOnly", "message": "Query Store на вторинній репліці не читається окремо: дані Query Store беруться з primary", "dataset": "queryStore", "server": "SQL02", "database": "Sales" }]
+				}
+			]
+		}
+	],
+	"warnings": []
+}

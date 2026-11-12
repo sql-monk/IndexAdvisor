@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-16"?>
+<ShowPlanXML xmlns="http://schemas.microsoft.com/sqlserver/2004/07/showplan" Version="1.564" Build="16.0.4135.4">
+	<BatchSequence>
+		<Batch>
+			<Statements>
+				<StmtSimple StatementText="SELECT o.OrderId, o.Status, c.Name FROM dbo.Orders AS o WITH (INDEX(IX_CustomerId)) JOIN dbo.Customers AS c ON c.CustomerId = o.CustomerId WHERE o.CustomerId = @CustomerId AND o.Comment LIKE @pattern AND o.Comment = @comment" StatementId="1" StatementCompId="1" StatementType="SELECT">
+					<QueryPlan CachedPlanSize="40" CompileTime="3" CompileCPU="3" CompileMemory="400">
+						<MissingIndexes>
+							<MissingIndexGroup Impact="85.5">
+								<MissingIndex Database="[Sales]" Schema="[dbo]" Table="[Orders]">
+									<ColumnGroup Usage="EQUALITY">
+										<Column Name="[CustomerId]" ColumnId="2" />
+									</ColumnGroup>
+									<ColumnGroup Usage="INEQUALITY">
+										<Column Name="[OrderDate]" ColumnId="3" />
+									</ColumnGroup>
+									<ColumnGroup Usage="INCLUDE">
+										<Column Name="[Status]" ColumnId="4" />
+										<Column Name="[Comment]" ColumnId="6" />
+									</ColumnGroup>
+								</MissingIndex>
+							</MissingIndexGroup>
+						</MissingIndexes>
+						<Warnings>
+							<PlanAffectingConvert ConvertIssue="Seek Plan" Expression="CONVERT_IMPLICIT(nvarchar(400),[o].[Comment],0)=[@comment]" />
+						</Warnings>
+						<RelOp NodeId="0" PhysicalOp="Hash Match" LogicalOp="Inner Join" EstimateRows="10" EstimatedExecutionMode="Row">
+							<OutputList />
+							<Hash>
+								<DefinedValues />
+								<HashKeysBuild>
+									<ColumnReference Database="[Sales]" Schema="[dbo]" Table="[Customers]" Alias="[c]" Column="CustomerId" />
+								</HashKeysBuild>
+								<RelOp NodeId="1" PhysicalOp="Clustered Index Scan" LogicalOp="Clustered Index Scan" EstimateRows="200000" EstimatedExecutionMode="Row">
+									<OutputList />
+									<IndexScan Ordered="0" ForcedIndex="0" ForceScan="0" NoExpandHint="0" Storage="RowStore">
+										<DefinedValues />
+										<Object Database="[Sales]" Schema="[dbo]" Table="[Customers]" Index="[PK_Customers]" Alias="[c]" IndexKind="Clustered" Storage="RowStore" />
+									</IndexScan>
+								</RelOp>
+								<RelOp NodeId="2" PhysicalOp="Nested Loops" LogicalOp="Inner Join" EstimateRows="10" EstimatedExecutionMode="Row">
+									<OutputList />
+									<NestedLoops Optimized="0">
+										<OuterReferences>
+											<ColumnReference Database="[Sales]" Schema="[dbo]" Table="[Orders]" Alias="[o]" Column="OrderId" />
+										</OuterReferences>
+										<RelOp NodeId="3" PhysicalOp="Index Seek" LogicalOp="Index Seek" EstimateRows="10" EstimatedExecutionMode="Row">
+											<OutputList />
+											<IndexScan Ordered="1" ScanDirection="FORWARD" ForcedIndex="1" ForceSeek="0" ForceScan="0" NoExpandHint="0" Storage="RowStore">
+												<DefinedValues />
+												<Object Database="[Sales]" Schema="[dbo]" Table="[Orders]" Index="[IX_CustomerId]" Alias="[o]" IndexKind="NonClustered" Storage="RowStore" />
+												<SeekPredicates>
+													<SeekPredicateNew>
+														<SeekKeys>
+															<Prefix ScanType="EQ">
+																<RangeColumns>
+																	<ColumnReference Database="[Sales]" Schema="[dbo]" Table="[Orders]" Alias="[o]" Column="CustomerId" />
+																</RangeColumns>
+																<RangeExpressions>
+																	<ScalarOperator ScalarString="[@CustomerId]">
+																		<Identifier>
+																			<ColumnReference Column="@CustomerId" />
+																		</Identifier>
+																	</ScalarOperator>
+																</RangeExpressions>
+															</Prefix>
+														</SeekKeys>
+													</SeekPredicateNew>
+												</SeekPredicates>
+											</IndexScan>
+										</RelOp>
+										<RelOp NodeId="5" PhysicalOp="Key Lookup" LogicalOp="Key Lookup" EstimateRows="1" EstimatedExecutionMode="Row">
+											<OutputList />
+											<IndexScan Lookup="1" Ordered="1" ScanDirection="FORWARD" ForcedIndex="0" ForceSeek="0" ForceScan="0" NoExpandHint="0">
+												<DefinedValues />
+												<Object Database="[Sales]" Schema="[dbo]" Table="[Orders]" Index="[PK_Orders]" Alias="[o]" TableReferenceId="-1" IndexKind="Clustered" Storage="RowStore" />
+												<SeekPredicates>
+													<SeekPredicateNew>
+														<SeekKeys>
+															<Prefix ScanType="EQ">
+																<RangeColumns>
+																	<ColumnReference Database="[Sales]" Schema="[dbo]" Table="[Orders]" Alias="[o]" Column="OrderId" />
+																</RangeColumns>
+																<RangeExpressions>
+																	<ScalarOperator ScalarString="[Sales].[dbo].[Orders].[OrderId] as [o].[OrderId]">
+																		<Identifier>
+																			<ColumnReference Database="[Sales]" Schema="[dbo]" Table="[Orders]" Alias="[o]" Column="OrderId" />
+																		</Identifier>
+																	</ScalarOperator>
+																</RangeExpressions>
+															</Prefix>
+														</SeekKeys>
+													</SeekPredicateNew>
+												</SeekPredicates>
+												<Predicate>
+													<ScalarOperator>
+														<Logical Operation="AND">
+															<ScalarOperator>
+																<Intrinsic FunctionName="like">
+																	<ScalarOperator>
+																		<Identifier>
+																			<ColumnReference Database="[Sales]" Schema="[dbo]" Table="[Orders]" Alias="[o]" Column="Comment" />
+																		</Identifier>
+																	</ScalarOperator>
+																	<ScalarOperator>
+																		<Identifier>
+																			<ColumnReference Column="@pattern" />
+																		</Identifier>
+																	</ScalarOperator>
+																</Intrinsic>
+															</ScalarOperator>
+															<ScalarOperator>
+																<Compare CompareOp="EQ">
+																	<ScalarOperator>
+																		<Convert DataType="nvarchar" Length="800" Style="0" Implicit="1">
+																			<ScalarOperator>
+																				<Identifier>
+																					<ColumnReference Database="[Sales]" Schema="[dbo]" Table="[Orders]" Alias="[o]" Column="Comment" />
+																				</Identifier>
+																			</ScalarOperator>
+																		</Convert>
+																	</ScalarOperator>
+																	<ScalarOperator>
+																		<Identifier>
+																			<ColumnReference Column="@comment" />
+																		</Identifier>
+																	</ScalarOperator>
+																</Compare>
+															</ScalarOperator>
+														</Logical>
+													</ScalarOperator>
+												</Predicate>
+											</IndexScan>
+										</RelOp>
+									</NestedLoops>
+								</RelOp>
+								<RelOp NodeId="7" PhysicalOp="Table Scan" LogicalOp="Table Scan" EstimateRows="5" EstimatedExecutionMode="Row">
+									<OutputList />
+									<TableScan Ordered="0" ForcedIndex="0" ForceScan="0" NoExpandHint="0" Storage="RowStore">
+										<DefinedValues />
+										<Object Database="[tempdb]" Schema="[dbo]" Table="[#tmp]" IndexKind="Heap" Storage="RowStore" />
+									</TableScan>
+								</RelOp>
+							</Hash>
+						</RelOp>
+					</QueryPlan>
+				</StmtSimple>
+			</Statements>
+		</Batch>
+	</BatchSequence>
+</ShowPlanXML>
