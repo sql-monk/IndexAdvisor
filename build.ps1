@@ -49,12 +49,12 @@
 .EXAMPLE
 	./build.ps1
 
-	Один exe: dist\IndexAdvisor-0.1.1-win-x64.exe.
+	Один exe: dist\IndexAdvisor-0.2.0-win-x64.exe.
 
 .EXAMPLE
 	./build.ps1 -Mode All -Test -Zip
 
-	Тести GUI, потім exe, IndexAdvisor-0.1.1-win-x64.zip, IndexAdvisor-0.1.1-win-x64-fx.zip і SHA256SUMS.txt.
+	Тести GUI, потім exe, IndexAdvisor-0.2.0-win-x64.zip, IndexAdvisor-0.2.0-win-x64-fx.zip і SHA256SUMS.txt.
 
 .OUTPUTS
 	Для кожного результату — Mode, Path, SizeMB.

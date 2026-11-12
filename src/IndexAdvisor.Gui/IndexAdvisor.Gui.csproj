@@ -9,7 +9,7 @@
 		<LangVersion>latest</LangVersion>
 		<RootNamespace>IndexAdvisor.Gui</RootNamespace>
 		<AssemblyName>IndexAdvisor.Gui</AssemblyName>
-		<Version>0.1.1</Version>
+		<Version>0.2.0</Version>
 		<Product>IndexAdvisor</Product>
 		<Description>Графічна оболонка IndexAdvisor: запуск аналізу, підтвердження дозапитів моделі, перегляд рекомендацій.</Description>
 		<!-- ThemeMode (Fluent) у WPF позначено як експериментальний. -->

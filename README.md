@@ -165,7 +165,7 @@ pwsh -NoProfile -File .\bin\IndexAdvisor.ps1 -Config D:\IndexAdvisor\run.yaml -N
 ```powershell
 dotnet run --project .\src\IndexAdvisor.Gui                     # з репозиторію (потрібен .NET 10 SDK)
 .\build.ps1                                                       # один exe для DBA: dist\IndexAdvisor-<версія>-win-x64.exe
-.\IndexAdvisor-0.1.1-win-x64.exe D:\IndexAdvisor\run.yaml          # відкрити конфігурацію; тека або result.json — одразу «Результати»
+.\IndexAdvisor-0.2.0-win-x64.exe D:\IndexAdvisor\run.yaml          # відкрити конфігурацію; тека або result.json — одразу «Результати»
 ```
 
 **Збірка.** `build.ps1` у корені репозиторію (pwsh 7.2+, .NET SDK 10+) кладе результат у `dist`:
