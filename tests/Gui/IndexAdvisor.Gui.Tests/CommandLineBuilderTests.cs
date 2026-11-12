@@ -67,6 +67,13 @@ public class CommandLineBuilderTests
 	}
 
 	[Fact]
+	public void BuildParameters_HtmlTheme_PassedOnlyWhenSet()
+	{
+		Assert.DoesNotContain(CommandLineBuilder.BuildParameters(new RunOptions()), p => p.Name == "HtmlTheme");
+		Assert.Equal("Invoke-IndexAdvisor -HtmlTheme Dark", CommandLineBuilder.FormatPowerShell(new RunOptions { HtmlTheme = "Dark" }));
+	}
+
+	[Fact]
 	public void FormatPowerShell_QuotesPathsAndListsAndFalseSwitches()
 	{
 		var options = new RunOptions

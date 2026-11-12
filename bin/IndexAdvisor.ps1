@@ -28,6 +28,7 @@ param(
 	[string[]]$ExcludeDataset,
 	[string]$OutputPath,
 	[string[]]$Format,
+	[ValidateSet('Auto', 'Light', 'Dark')][string]$HtmlTheme,
 	[switch]$NoRepository,
 	[switch]$NoArchive,
 	[string]$FromArchive,

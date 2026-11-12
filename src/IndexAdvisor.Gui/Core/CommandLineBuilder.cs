@@ -82,6 +82,7 @@ public static class CommandLineBuilder
 		{
 			result.Add(new CommandParameter("Format", options.Formats.Distinct(StringComparer.OrdinalIgnoreCase).ToArray()));
 		}
+		AddText("HtmlTheme", options.HtmlTheme);
 		AddSwitch("NoRepository", options.NoRepository);
 		AddSwitch("NoArchive", options.NoArchive);
 		AddText("FromArchive", options.FromArchive);

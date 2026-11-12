@@ -302,6 +302,7 @@ WHERE s.name = @SchemaName AND t.name = @TableName;
 | `-Dataset` | `collector.datasets.*` = `$true` лише для перелічених (+ обов'язкові), решта `$false` |
 | `-ExcludeDataset` | `collector.datasets.<name>` = `$false` |
 | `-OutputPath` / `-Format` | `output.path` / `output.formats` |
+| `-HtmlTheme` | `output.htmlTheme` (`Auto` — тема браузера чи ОС, `Light` / `Dark` — примусово; GUI передає тему застосунку) |
 | `-NoRepository` | `repository.enabled = $false` |
 | `-NoArchive` | `archive.enabled = $false` |
 | `-NonInteractive` / `-AutoApprove` | `run.nonInteractive` / `llm.autoApproveToolRequests` |

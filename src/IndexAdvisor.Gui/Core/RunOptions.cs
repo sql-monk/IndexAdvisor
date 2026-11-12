@@ -31,6 +31,12 @@ public sealed class RunOptions
 	/// <summary>null — з конфігурації; інакше — точний перелік форматів.</summary>
 	public List<string>? Formats { get; set; }
 
+	/// <summary>
+	/// Тема report.html (Auto | Light | Dark); null — з конфігурації. У формі не показується:
+	/// перед запуском GUI підставляє поточну тему застосунку, щоб звіт був у тій самій темі.
+	/// </summary>
+	public string? HtmlTheme { get; set; }
+
 	public string? FromArchive { get; set; }
 
 	public bool? NoRepository { get; set; }

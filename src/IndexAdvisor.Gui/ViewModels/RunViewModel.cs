@@ -711,6 +711,9 @@ public sealed class RunViewModel : ObservableObject
 		_settings.RememberConfig(options.ConfigPath);
 		_settings.Save();
 
+		// Звіт — у темі застосунку (у збережені параметри форми тема не потрапляє).
+		options.HtmlTheme = ThemeManager.IsDark ? "Dark" : "Light";
+
 		_cancellation = new CancellationTokenSource();
 		IsRunning = true;
 		HasResults = false;

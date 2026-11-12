@@ -288,10 +288,12 @@ analysisWindow:
 					AnalysisWindowDays = 60
 					Dataset = @('usageStats')
 					Format = @('Html', 'Json')
+					HtmlTheme = 'Dark'
 				})
 			Get-IaConfig -Path $Path -Overrides $overrides
 		}
 		@($config.servers) | Should -Be @('SQL09', 'SQL10')
+		$config.output.htmlTheme | Should -Be 'Dark'
 		$config.module | Should -Be 'Both'
 		$config.llm.provider | Should -Be 'openai'
 		$config.llm.maskNames | Should -BeTrue

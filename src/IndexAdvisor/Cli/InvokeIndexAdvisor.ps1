@@ -62,6 +62,7 @@ function ConvertTo-IaCliOverrides {
 		AnalysisWindowDays = 'analysisWindow.days'
 		OutputPath = 'output.path'
 		Format = 'output.formats'
+		HtmlTheme = 'output.htmlTheme'
 	}
 	foreach ($name in $simple.Keys) {
 		if ($BoundParameters.Contains($name)) {
@@ -875,6 +876,7 @@ function Invoke-IndexAdvisor {
 		[string[]]$ExcludeDataset,
 		[string]$OutputPath,
 		[ValidateSet('Markdown', 'Sql', 'Html', 'Json', 'Console')][string[]]$Format,
+		[ValidateSet('Auto', 'Light', 'Dark')][string]$HtmlTheme,
 		[switch]$NoRepository,
 		[switch]$NoArchive,
 		[string]$FromArchive,

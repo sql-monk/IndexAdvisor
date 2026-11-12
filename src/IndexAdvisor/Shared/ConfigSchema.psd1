@@ -136,6 +136,7 @@
 			Properties = @(
 				@{ Name = 'path'; Type = 'string'; Default = './out'; Description = 'Каталог результатів' }
 				@{ Name = 'formats'; Type = 'array'; Items = 'string'; Enum = @('Markdown', 'Sql', 'Html', 'Json', 'Console'); Default = @('Markdown', 'Sql', 'Console'); Description = 'Формати результату' }
+				@{ Name = 'htmlTheme'; Type = 'string'; Enum = @('Auto', 'Light', 'Dark'); Default = 'Auto'; Description = 'Тема report.html: Auto — як у браузері чи ОС, Light/Dark — примусово' }
 			)
 		}
 		@{

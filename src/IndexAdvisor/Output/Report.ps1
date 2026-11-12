@@ -539,16 +539,21 @@ function ConvertTo-IaOutHtmlText {
 }
 
 function ConvertTo-IaOutHtml {
-	<# Рендер моделі блоків у самодостатній HTML без зовнішніх ресурсів і скриптів. #>
+	<# Рендер моделі блоків у самодостатній HTML без зовнішніх ресурсів і скриптів.
+	   Theme: Auto — за налаштуванням браузера чи ОС (prefers-color-scheme); Light/Dark — примусово (атрибут data-theme). #>
 	param(
 		[Parameter(Mandatory)][object[]]$Blocks,
-		[Parameter(Mandatory)][string]$Title
+		[Parameter(Mandatory)][string]$Title,
+		[ValidateSet('Auto', 'Light', 'Dark')][string]$Theme = 'Auto'
 	)
+	$darkVars = '--fg: #e6e6e6; --bg: #17181a; --muted: #a0a4aa; --line: #3a3d42; --head: #24262a; --code: #1f2124;' +
+		' --info: #182a3d; --info-line: #5b9be0; --warn: #3a2f12; --warn-line: #e0b050; --danger: #3d1a1a; --danger-line: #e06a5b;'
 	$style = @'
 :root { color-scheme: light dark; --fg: #1d1d1f; --bg: #ffffff; --muted: #5f6368; --line: #d0d4da; --head: #f2f4f7; --code: #f6f8fa;
 	--info: #e8f1fb; --info-line: #2f6fb5; --warn: #fff6e0; --warn-line: #b7791f; --danger: #fdecec; --danger-line: #c0392b; }
-@media (prefers-color-scheme: dark) { :root { --fg: #e6e6e6; --bg: #17181a; --muted: #a0a4aa; --line: #3a3d42; --head: #24262a; --code: #1f2124;
-	--info: #182a3d; --info-line: #5b9be0; --warn: #3a2f12; --warn-line: #e0b050; --danger: #3d1a1a; --danger-line: #e06a5b; } }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { {darkVars} } }
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; {darkVars} }
 body { font-family: "Segoe UI", Arial, sans-serif; color: var(--fg); background: var(--bg); margin: 0 auto; padding: 16px 24px 48px; max-width: 1200px; line-height: 1.45; }
 h1 { font-size: 1.6em; } h2 { margin-top: 2em; border-bottom: 1px solid var(--line); padding-bottom: .2em; } h3 { margin-top: 1.6em; } h4 { margin-bottom: .3em; }
 table { border-collapse: collapse; width: 100%; margin: .5em 0 1em; font-size: .92em; display: block; overflow-x: auto; }
@@ -560,9 +565,15 @@ pre { background: var(--code); border: 1px solid var(--line); padding: 10px; ove
 .alert.danger, ul.danger { border-left: 4px solid var(--danger-line); background: var(--danger); font-weight: 600; }
 ul.warn, ul.danger { padding: 8px 12px 8px 32px; }
 '@
+	$style = $style.Replace('{darkVars}', $darkVars)
 	$sb = [System.Text.StringBuilder]::new()
 	[void]$sb.AppendLine('<!DOCTYPE html>')
-	[void]$sb.AppendLine('<html lang="uk">')
+	if ($Theme -eq 'Auto') {
+		[void]$sb.AppendLine('<html lang="uk">')
+	}
+	else {
+		[void]$sb.AppendLine("<html lang=""uk"" data-theme=""$($Theme.ToLowerInvariant())"">")
+	}
 	[void]$sb.AppendLine('<head>')
 	[void]$sb.AppendLine('<meta charset="utf-8">')
 	[void]$sb.AppendLine('<meta name="viewport" content="width=device-width, initial-scale=1">')
@@ -774,7 +785,11 @@ function Export-IaReport {
 		}
 		if ('Html' -in $formats) {
 			$title = "IndexAdvisor: $($RunResult.requestedServer) ($($RunResult.runId))"
-			$files.Add((Write-IaOutFile -Path (Join-Path $directory 'report.html') -Text (ConvertTo-IaOutHtml -Blocks $blocks -Title $title)))
+			$theme = [string]$Config.output.htmlTheme
+			if (-not $theme) {
+				$theme = 'Auto'
+			}
+			$files.Add((Write-IaOutFile -Path (Join-Path $directory 'report.html') -Text (ConvertTo-IaOutHtml -Blocks $blocks -Title $title -Theme $theme)))
 		}
 	}
 	if ('Sql' -in $formats) {

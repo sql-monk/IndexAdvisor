@@ -139,6 +139,27 @@ Describe 'Export-IaReport' {
 		$html | Should -Match 'Відхилені перевіркою'
 	}
 
+	It 'тема HTML: Auto — за prefers-color-scheme без data-theme, Light/Dark — примусово' {
+		$run = New-TestReportRun
+		$readHtml = {
+			param($Theme)
+			$config = Get-IaTestConfig -Root (Join-Path $TestDrive ([guid]::NewGuid().ToString('N')))
+			$config.output.formats = @('Html')
+			if ($Theme) {
+				$config.output.htmlTheme = $Theme
+			}
+			$files = InModuleScope IndexAdvisor -Parameters @{ Run = $run; Config = $config } { param($Run, $Config) Export-IaReport -RunResult $Run -Config $Config 6>$null }
+			Get-Content -LiteralPath @($files)[0] -Raw
+		}
+		$auto = & $readHtml $null
+		$auto | Should -Match '<html lang="uk">'
+		$auto | Should -Match ([regex]::Escape('@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --fg: #e6e6e6;'))
+		$dark = & $readHtml 'Dark'
+		$dark | Should -Match '<html lang="uk" data-theme="dark">'
+		$dark | Should -Match ([regex]::Escape(':root[data-theme="dark"] { color-scheme: dark; --fg: #e6e6e6;'))
+		(& $readHtml 'Light') | Should -Match '<html lang="uk" data-theme="light">'
+	}
+
 	It 'SQL-скрипт видалення з невиконаними умовами 4.4 закоментовано з поясненням' {
 		$run = New-TestReportRun
 		$files = InModuleScope IndexAdvisor -Parameters @{ Run = $run; Config = $script:Config } { param($Run, $Config) Export-IaReport -RunResult $Run -Config $Config 6>$null }
