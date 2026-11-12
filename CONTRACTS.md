@@ -46,6 +46,7 @@ src/IndexAdvisor.Gui/           WPF (.NET 10): власний PSHost; викли
                                 New-IaIndexMaintenance -PassThru, Install-IaServiceLogin; для підсумку конфігурації — Get-IaConfig і
                                 ConvertTo-IaCliOverrides в області модуля; Read-Host -> діалог. Форма налаштувань будується з
                                 Shared/ConfigSchema.psd1 (нові ключі схеми з'являються у формі без змін GUI); YAML читає ConvertFrom-Yaml
+build.ps1                       збирання GUI: один exe (за замовчуванням), тека з .NET або без, zip і SHA256SUMS.txt у dist/
 tests/<Тека>/*.Tests.ps1, tests/Security/, tests/Fixtures/, tests/TestHelpers.ps1, tests/Gui/ (xUnit)
 ```
 

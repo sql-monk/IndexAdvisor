@@ -38,4 +38,17 @@
 		<Content Include="..\IndexAdvisor\**\*" LinkBase="Modules\IndexAdvisor" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
 	</ItemGroup>
 
+	<!--
+		Один exe (build.ps1 або dotnet publish -r win-x64 -p:PublishSingleFile=true). Без повного розпакування поруч з exe
+		лишаються теки Modules (модуль IndexAdvisor) і runtimes (модулі PowerShell SDK), бо це файли, а не збірки.
+		Тому exe під час першого запуску розпаковує весь вміст у %TEMP%\.net\<ім'я exe>\<хеш>
+		(інше місце — змінна DOTNET_BUNDLE_EXTRACT_BASE_DIR) і працює звідти, як опублікована тека.
+	-->
+	<PropertyGroup Condition="'$(PublishSingleFile)' == 'true'">
+		<IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+		<EnableCompressionInSingleFile Condition="'$(SelfContained)' == 'true'">true</EnableCompressionInSingleFile>
+		<!-- NETSDK1244 радить розпакування в пам'ять, але воно лишає модулі поруч з exe. -->
+		<MSBuildWarningsAsMessages>$(MSBuildWarningsAsMessages);NETSDK1244</MSBuildWarningsAsMessages>
+	</PropertyGroup>
+
 </Project>

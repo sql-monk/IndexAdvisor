@@ -18,7 +18,8 @@
 testResults.xml
 coverage.xml
 
-# Збірка .NET (GUI і його тести)
+# Збірка .NET (GUI і його тести); dist — результат build.ps1
+/dist/
 /src/IndexAdvisor.Gui/bin/
 /src/IndexAdvisor.Gui/obj/
 /tests/Gui/**/bin/
