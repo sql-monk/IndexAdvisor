@@ -3,6 +3,7 @@
 		xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 		xmlns:views="clr-namespace:IndexAdvisor.Gui.Views"
 		Title="IndexAdvisor — аналіз індексів SQL Server"
+		Icon="/Assets/IndexAdvisor.ico"
 		Width="1440"
 		Height="920"
 		MinWidth="1040"

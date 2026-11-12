@@ -19,6 +19,9 @@ public sealed class ConfigSummary
 	public string[] ExcludeDatabases { get; init; } = [];
 	public string? Provider { get; init; }
 	public string[] Providers { get; init; } = [];
+
+	/// <summary>Тип, endpoint і модель кожного провайдера: для списку моделей у формі запуску.</summary>
+	public ProviderSummary[] ProviderDetails { get; init; } = [];
 	public string? Model { get; init; }
 	public string? CrossCheckProvider { get; init; }
 	public int? AnalysisWindowDays { get; init; }
@@ -36,6 +39,14 @@ public sealed class ConfigSummary
 	public bool AutoApprove { get; init; }
 	public bool NonInteractive { get; init; }
 	public bool Maintenance { get; init; }
+}
+
+public sealed class ProviderSummary
+{
+	public string Name { get; init; } = string.Empty;
+	public string? Type { get; init; }
+	public string? Endpoint { get; init; }
+	public string? Model { get; init; }
 }
 
 public sealed class ConfigCheckResult

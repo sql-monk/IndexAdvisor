@@ -2,6 +2,7 @@
 			 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
 			 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 			 xmlns:infra="clr-namespace:IndexAdvisor.Gui.Infrastructure"
+			 xmlns:help="clr-namespace:IndexAdvisor.Gui.Help"
 			 ShutdownMode="OnMainWindowClose">
 	<Application.Resources>
 		<ResourceDictionary>
@@ -58,6 +59,89 @@
 				<Setter Property="Padding" Value="8,1" />
 				<Setter Property="HorizontalAlignment" Value="Left" />
 				<Setter Property="VerticalAlignment" Value="Center" />
+			</Style>
+
+			<!-- Вміст довідки «?» (і в підказці при наведенні, і в закріпленій панелі). -->
+			<DataTemplate DataType="{x:Type help:HelpInfo}">
+				<StackPanel MaxWidth="480">
+					<TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
+					<TextBlock Text="{Binding Key}" FontFamily="{StaticResource MonoFont}" FontSize="11.5" Opacity="0.7" TextWrapping="Wrap" Margin="0,2,0,0"
+							   Visibility="{Binding HasKey, Converter={StaticResource BoolToVisibility}}" />
+					<TextBlock Text="{Binding Text}" TextWrapping="Wrap" Margin="0,8,0,0" LineHeight="19"
+							   Visibility="{Binding HasText, Converter={StaticResource BoolToVisibility}}" />
+					<ItemsControl ItemsSource="{Binding Facts}" Margin="0,8,0,0" Focusable="False"
+								  Visibility="{Binding HasFacts, Converter={StaticResource BoolToVisibility}}">
+						<ItemsControl.ItemTemplate>
+							<DataTemplate>
+								<DockPanel Margin="0,2,0,0">
+									<TextBlock Text="•" Margin="0,0,6,0" Opacity="0.6" />
+									<TextBlock Text="{Binding}" TextWrapping="Wrap" Opacity="0.85" />
+								</DockPanel>
+							</DataTemplate>
+						</ItemsControl.ItemTemplate>
+					</ItemsControl>
+				</StackPanel>
+			</DataTemplate>
+
+			<!-- Кнопка «?»: наведення — підказка, клацання — закріплена панель (Esc або клацання поза нею закриває). -->
+			<Style TargetType="infra:HelpButton">
+				<Setter Property="Width" Value="18" />
+				<Setter Property="Height" Value="18" />
+				<Setter Property="Margin" Value="6,0,0,0" />
+				<Setter Property="Padding" Value="0" />
+				<Setter Property="VerticalAlignment" Value="Center" />
+				<Setter Property="Cursor" Value="Help" />
+				<Setter Property="IsTabStop" Value="True" />
+				<Setter Property="ToolTipService.InitialShowDelay" Value="300" />
+				<Setter Property="ToolTipService.ShowDuration" Value="120000" />
+				<Setter Property="ToolTipService.Placement" Value="Bottom" />
+				<Setter Property="Template">
+					<Setter.Value>
+						<ControlTemplate TargetType="infra:HelpButton">
+							<Grid Background="Transparent">
+								<Border x:Name="Circle" CornerRadius="9" BorderThickness="1" Background="Transparent"
+										BorderBrush="{DynamicResource ControlStrongStrokeColorDefaultBrush}">
+									<TextBlock x:Name="Mark" Text="?" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"
+											   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+								</Border>
+								<Popup x:Name="PART_Popup" Placement="Bottom" PlacementTarget="{Binding ElementName=Circle}" StaysOpen="False"
+									   AllowsTransparency="True" PopupAnimation="Fade" Focusable="False"
+									   IsOpen="{Binding IsChecked, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}">
+									<Border Margin="0,6,14,14" Padding="14,10,14,12" CornerRadius="8" BorderThickness="1"
+											Background="{DynamicResource SolidBackgroundFillColorBaseBrush}"
+											BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+											TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+											TextElement.FontSize="14" TextElement.FontWeight="Normal" TextElement.FontStyle="Normal">
+										<Border.Effect>
+											<DropShadowEffect BlurRadius="14" ShadowDepth="2" Opacity="0.28" />
+										</Border.Effect>
+										<ContentPresenter Content="{TemplateBinding Help}" />
+									</Border>
+								</Popup>
+							</Grid>
+							<ControlTemplate.Triggers>
+								<Trigger Property="IsMouseOver" Value="True">
+									<Setter TargetName="Circle" Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+									<Setter TargetName="Mark" Property="Foreground" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+								</Trigger>
+								<Trigger Property="IsKeyboardFocused" Value="True">
+									<Setter TargetName="Circle" Property="BorderThickness" Value="2" />
+									<Setter TargetName="Circle" Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+								</Trigger>
+								<Trigger Property="IsChecked" Value="True">
+									<Setter TargetName="Circle" Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+									<Setter TargetName="Circle" Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+									<Setter TargetName="Mark" Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+								</Trigger>
+								<!-- Поки панель відкрита, повторне клацання по кнопці лише закриває її (а не відкриває знову). -->
+								<Trigger SourceName="PART_Popup" Property="IsOpen" Value="True">
+									<Setter Property="IsHitTestVisible" Value="False" />
+									<Setter Property="ToolTipService.IsEnabled" Value="False" />
+								</Trigger>
+							</ControlTemplate.Triggers>
+						</ControlTemplate>
+					</Setter.Value>
+				</Setter>
 			</Style>
 		</ResourceDictionary>
 	</Application.Resources>

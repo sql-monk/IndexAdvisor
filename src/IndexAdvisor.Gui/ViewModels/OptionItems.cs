@@ -1,3 +1,4 @@
+using IndexAdvisor.Gui.Help;
 using IndexAdvisor.Gui.Infrastructure;
 
 namespace IndexAdvisor.Gui.ViewModels;
@@ -19,6 +20,8 @@ public sealed class TextOption : ObservableObject
 		Key = key;
 		Label = label;
 		ToolTip = toolTip;
+		// Ключі полів цілі — імена параметрів (-Server), довідка — за властивостями RunOptions (Servers).
+		Help = HelpCatalog.ForRun(key + "s", label);
 	}
 
 	public string Key { get; }
@@ -26,6 +29,8 @@ public sealed class TextOption : ObservableObject
 	public string Label { get; }
 
 	public string ToolTip { get; }
+
+	public HelpInfo Help { get; }
 
 	public string? Value
 	{
@@ -58,6 +63,7 @@ public sealed class FlagOption : ObservableObject
 		IsThreeState = isThreeState;
 		InvertedInConfig = invertedInConfig;
 		_value = isThreeState ? null : false;
+		Help = HelpCatalog.ForRun(key, label);
 	}
 
 	public string Key { get; }
@@ -65,6 +71,23 @@ public sealed class FlagOption : ObservableObject
 	public string Label { get; }
 
 	public string ToolTip { get; }
+
+	public HelpInfo Help { get; }
+
+	/// <summary>Звідки ConfigValue: «з конфігурації» або «типово» (конфігурацію не вибрано — діють значення схеми).</summary>
+	public string ConfigSource
+	{
+		get => _configSource;
+		set
+		{
+			if (SetProperty(ref _configSource, value))
+			{
+				OnPropertyChanged(nameof(Hint));
+			}
+		}
+	}
+
+	private string _configSource = "з конфігурації";
 
 	public bool IsThreeState { get; }
 
@@ -100,9 +123,9 @@ public sealed class FlagOption : ObservableObject
 		? string.Empty
 		: _configValue switch
 		{
-			true => "з конфігурації: так",
-			false => "з конфігурації: ні",
-			null => "з конфігурації",
+			true => _configSource + ": так",
+			false => _configSource + ": ні",
+			null => _configSource,
 		};
 
 	/// <summary>Значення для RunOptions: для двостанного false означає «не передавати».</summary>

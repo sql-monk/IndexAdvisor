@@ -29,7 +29,9 @@
 						ToolTip="Прибрати ключ з файлу: діятиме значення за замовчуванням"
 						Visibility="{Binding IsSet, Converter={StaticResource BoolToVisibility}}" />
 				<StackPanel Margin="0,0,12,0">
-					<TextBlock Text="{Binding Label}" FontWeight="SemiBold" TextWrapping="Wrap" />
+					<TextBlock FontWeight="SemiBold" TextWrapping="Wrap">
+						<Run Text="{Binding Label, Mode=OneWay}" /><InlineUIContainer BaselineAlignment="Center"><infra:HelpButton Help="{Binding Help}" /></InlineUIContainer>
+					</TextBlock>
 					<TextBlock FontFamily="{StaticResource MonoFont}" FontSize="11.5" Opacity="0.62" TextWrapping="Wrap" Margin="0,2,0,0">
 						<Run Text="{Binding Path, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding DefaultText, Mode=OneWay}" />
 					</TextBlock>
@@ -61,7 +63,23 @@
 				<StackPanel>
 					<ContentControl Content="{Binding}" ContentTemplate="{StaticResource FieldHeader}" Focusable="False" />
 					<TextBox Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}" Width="560" HorizontalAlignment="Left"
-							 AutomationProperties.Name="{Binding Path}" />
+							 AutomationProperties.Name="{Binding Path}"
+							 Visibility="{Binding HasSuggestions, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}" />
+					<!-- Готові значення (моделі, endpoint, провайдери): вибрати зі списку або ввести своє. -->
+					<ComboBox IsEditable="True" IsTextSearchEnabled="False" TextSearch.TextPath="Value" ItemsSource="{Binding Suggestions}"
+							  Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}" Width="560" HorizontalAlignment="Left"
+							  AutomationProperties.Name="{Binding Path}"
+							  Visibility="{Binding HasSuggestions, Converter={StaticResource BoolToVisibility}}">
+						<ComboBox.ItemTemplate>
+							<DataTemplate>
+								<StackPanel>
+									<TextBlock Text="{Binding Value}" FontWeight="SemiBold" />
+									<TextBlock Text="{Binding Note}" FontSize="12" Opacity="0.7" TextWrapping="Wrap" MaxWidth="520"
+											   Visibility="{Binding Note, Converter={StaticResource EmptyToVisible}, ConverterParameter=Invert}" />
+								</StackPanel>
+							</DataTemplate>
+						</ComboBox.ItemTemplate>
+					</ComboBox>
 					<ContentControl Content="{Binding}" ContentTemplate="{StaticResource FieldFooter}" Focusable="False" />
 				</StackPanel>
 			</Border>
@@ -112,7 +130,9 @@
 
 		<DataTemplate DataType="{x:Type cf:GroupSettingVm}">
 			<StackPanel Margin="0,18,0,0">
-				<TextBlock Text="{Binding Label}" FontSize="14.5" FontWeight="SemiBold" TextWrapping="Wrap" />
+				<TextBlock FontSize="14.5" FontWeight="SemiBold" TextWrapping="Wrap">
+					<Run Text="{Binding Label, Mode=OneWay}" /><InlineUIContainer BaselineAlignment="Center"><infra:HelpButton Help="{Binding Help}" /></InlineUIContainer>
+				</TextBlock>
 				<TextBlock Text="{Binding Path}" FontFamily="{StaticResource MonoFont}" FontSize="11.5" Opacity="0.62" />
 				<ItemsControl ItemsSource="{Binding Children}" Margin="14,0,0,0" Focusable="False" />
 			</StackPanel>
@@ -133,21 +153,55 @@
 			</Border>
 		</DataTemplate>
 
-		<DataTemplate x:Key="CollectionTemplate">
-			<StackPanel Margin="0,18,0,0">
-				<TextBlock Text="{Binding Label}" FontSize="14.5" FontWeight="SemiBold" TextWrapping="Wrap" />
+		<DataTemplate x:Key="CollectionHeader">
+			<StackPanel>
+				<TextBlock FontSize="14.5" FontWeight="SemiBold" TextWrapping="Wrap">
+					<Run Text="{Binding Label, Mode=OneWay}" /><InlineUIContainer BaselineAlignment="Center"><infra:HelpButton Help="{Binding Help}" /></InlineUIContainer>
+				</TextBlock>
 				<TextBlock Text="{Binding Path}" FontFamily="{StaticResource MonoFont}" FontSize="11.5" Opacity="0.62" />
+			</StackPanel>
+		</DataTemplate>
+
+		<DataTemplate DataType="{x:Type cf:ListSettingVm}">
+			<StackPanel Margin="0,18,0,0">
+				<ContentControl Content="{Binding}" ContentTemplate="{StaticResource CollectionHeader}" Focusable="False" />
 				<ItemsControl ItemsSource="{Binding Items}" Focusable="False" />
 				<Button Content="{Binding AddText}" Command="{Binding AddCommand}" HorizontalAlignment="Left" Margin="0,10,0,0" />
 			</StackPanel>
 		</DataTemplate>
 
-		<DataTemplate DataType="{x:Type cf:ListSettingVm}">
-			<ContentControl Content="{Binding}" ContentTemplate="{StaticResource CollectionTemplate}" Focusable="False" />
-		</DataTemplate>
-
 		<DataTemplate DataType="{x:Type cf:MapSettingVm}">
-			<ContentControl Content="{Binding}" ContentTemplate="{StaticResource CollectionTemplate}" Focusable="False" />
+			<StackPanel Margin="0,18,0,0">
+				<ContentControl Content="{Binding}" ContentTemplate="{StaticResource CollectionHeader}" Focusable="False" />
+				<ItemsControl ItemsSource="{Binding Items}" Focusable="False" />
+				<StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+					<!-- Готові провайдери LLM: тип, endpoint, ключ, модель і ціни одразу заповнено. -->
+					<Button Content="Додати готовий…  ▾" Click="OnAddPresetClick" Style="{DynamicResource AccentButtonStyle}" Margin="0,0,8,0"
+							Visibility="{Binding HasPresets, Converter={StaticResource BoolToVisibility}}"
+							ToolTip="Anthropic, OpenAI, Azure OpenAI, Gemini, Mistral, DeepSeek, Cohere, локальні Ollama й vLLM">
+						<Button.ContextMenu>
+							<ContextMenu ItemsSource="{Binding Presets}">
+								<ContextMenu.ItemContainerStyle>
+									<Style TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+										<Setter Property="Command" Value="{Binding DataContext.AddPresetCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+										<Setter Property="CommandParameter" Value="{Binding}" />
+										<Setter Property="ToolTip" Value="{Binding Note}" />
+									</Style>
+								</ContextMenu.ItemContainerStyle>
+								<!-- Шаблон, а не спільний TextBlock у Setter: кожен пункт отримує власний заголовок. -->
+								<ContextMenu.ItemTemplate>
+									<DataTemplate>
+										<TextBlock>
+											<Run Text="{Binding Title, Mode=OneWay}" FontWeight="SemiBold" /><Run Text="  ·  " /><Run Text="{Binding DefaultModel.Id, Mode=OneWay}" />
+										</TextBlock>
+									</DataTemplate>
+								</ContextMenu.ItemTemplate>
+							</ContextMenu>
+						</Button.ContextMenu>
+					</Button>
+					<Button Content="{Binding AddText}" Command="{Binding AddCommand}" />
+				</StackPanel>
+			</StackPanel>
 		</DataTemplate>
 	</UserControl.Resources>
 

@@ -133,6 +133,7 @@ public sealed class RunViewModel : ObservableObject
 		{
 			if (e.PropertyName == nameof(ConfigStateViewModel.Path))
 			{
+				ApplySummaryHints();
 				UpdatePreview();
 			}
 		};
@@ -173,6 +174,9 @@ public sealed class RunViewModel : ObservableObject
 	public IReadOnlyList<ChoiceOption> ModuleChoices { get; }
 
 	public ObservableCollection<string> ProviderChoices { get; } = [];
+
+	/// <summary>Моделі каталогу для вибраного провайдера (за його типом і endpoint у конфігурації).</summary>
+	public ObservableCollection<ConfigForm.SuggestionItem> ModelChoices { get; } = [];
 
 	public IReadOnlyList<string> MandatoryDatasetsText { get; } = IaConstants.MandatoryDatasets;
 
@@ -452,8 +456,11 @@ public sealed class RunViewModel : ObservableObject
 	{
 		switch (e.PropertyName)
 		{
-			case nameof(Module):
 			case nameof(Provider):
+				UpdateModelChoices();
+				UpdatePreview();
+				break;
+			case nameof(Module):
 			case nameof(Model):
 			case nameof(CrossCheckProvider):
 			case nameof(AnalysisWindowDaysText):
@@ -479,6 +486,52 @@ public sealed class RunViewModel : ObservableObject
 		PwshCommand = script is null ? null : CommandLineBuilder.FormatPwshFile(options, script);
 	}
 
+	/// <summary>Схема модуля для типових значень, коли конфігурацію не вибрано (кешується за шляхом модуля).</summary>
+	private SchemaNode? Schema()
+	{
+		var modulePath = _modulePath();
+		if (!string.Equals(modulePath, _schemaModulePath, StringComparison.OrdinalIgnoreCase))
+		{
+			_schemaModulePath = modulePath;
+			try
+			{
+				var path = ConfigSchemaLoader.FindSchemaPath(modulePath);
+				_schema = path is null ? null : ConfigSchemaLoader.Load(path);
+			}
+			catch (Exception ex) when (ex is IOException or InvalidOperationException or InvalidDataException or ArgumentException)
+			{
+				// Без схеми форма лише не покаже типових значень.
+				_schema = null;
+			}
+		}
+		return _schema;
+	}
+
+	private object? SchemaDefault(string path)
+	{
+		var node = Schema();
+		foreach (var part in path.Split('.'))
+		{
+			node = node?.Find(part);
+		}
+		return node?.Default;
+	}
+
+	private SchemaNode? _schema;
+	private string? _schemaModulePath;
+
+	private void UpdateModelChoices()
+	{
+		var summary = Config.Summary;
+		var name = string.IsNullOrWhiteSpace(Provider) ? summary?.Provider : Provider.Trim();
+		var provider = summary?.ProviderDetails.FirstOrDefault(item => string.Equals(item.Name, name, StringComparison.Ordinal));
+		ModelChoices.Clear();
+		foreach (var model in provider is null ? [] : LlmCatalog.ModelsFor(provider.Type, provider.Endpoint))
+		{
+			ModelChoices.Add(new ConfigForm.SuggestionItem(model.Id, ConfigForm.LlmFormBinder.ModelNote(model)));
+		}
+	}
+
 	private void ApplySummaryHints()
 	{
 		var summary = Config.Summary;
@@ -486,6 +539,17 @@ public sealed class RunViewModel : ObservableObject
 		{
 			var text = string.Join(", ", items);
 			return string.IsNullOrWhiteSpace(text) ? empty : text;
+		}
+		UpdateModelChoices();
+		// Конфігурацію не вибрано: запуск іде зі значеннями схеми модуля — їх і показуємо.
+		if (summary is null && string.IsNullOrWhiteSpace(Config.Path))
+		{
+			ApplyDefaultHints();
+			return;
+		}
+		foreach (var flag in Flags)
+		{
+			flag.ConfigSource = "з конфігурації";
 		}
 		foreach (var option in ScopeOptions)
 		{
@@ -531,6 +595,51 @@ public sealed class RunViewModel : ObservableObject
 		if (summary?.OutputPath is { Length: > 0 } root && string.IsNullOrWhiteSpace(OutputPath))
 		{
 			_results.SuggestRoot(root);
+		}
+	}
+
+	/// <summary>Підказки без конфігурації: значення за замовчуванням зі схеми модуля.</summary>
+	private void ApplyDefaultHints()
+	{
+		string Default(string path, string empty)
+		{
+			var text = ConfigForm.ScalarSettingVm.FormatDefault(SchemaDefault(path));
+			return "типово: " + (text is "—" or "порожньо" ? empty : text);
+		}
+		bool Flag(string path) => SchemaDefault(path) is true;
+
+		foreach (var option in ScopeOptions)
+		{
+			option.Hint = option.Key switch
+			{
+				"Server" => "вкажіть сервер — без конфігурації серверів немає",
+				"Database" or "Schema" or "Table" => "типово: усі",
+				_ => "типово: немає",
+			};
+		}
+		ModuleHint = SchemaDefault("module") is string module && module.Length > 0 ? "типово: " + Results.Labels.Module(module) : "типово";
+		ProviderHint = "типово: не задано — без конфігурації провайдерів LLM немає";
+		ModelHint = "типово: модель провайдера";
+		DaysHint = Default("analysisWindow.days", "—");
+		OutputHint = Default("output.path", "./out");
+		var datasets = IaConstants.OptionalDatasets.Where(name => Flag("collector.datasets." + name)).ToList();
+		DatasetsHint = "типово: " + (datasets.Count > 0 ? string.Join(", ", datasets) : "лише обов'язкові");
+		FormatsHint = Default("output.formats", "—");
+		ProviderChoices.Clear();
+		foreach (var flag in Flags)
+		{
+			flag.ConfigSource = "типово";
+			flag.ConfigValue = flag.Key switch
+			{
+				"NoRepository" => !Flag("repository.enabled"),
+				"NoArchive" => !Flag("archive.enabled"),
+				"Maintenance" => Flag("maintenance.enabled"),
+				"MaskNames" => Flag("llm.maskNames"),
+				"LocalOnly" => Flag("llm.localOnly"),
+				"AutoApprove" => Flag("llm.autoApproveToolRequests"),
+				"NonInteractive" => Flag("run.nonInteractive"),
+				_ => null,
+			};
 		}
 	}
 

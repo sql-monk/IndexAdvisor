@@ -1,26 +1,30 @@
 <UserControl x:Class="IndexAdvisor.Gui.Views.PreferencesView"
 			 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-			 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+			 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+			 xmlns:infra="clr-namespace:IndexAdvisor.Gui.Infrastructure">
 	<!-- DataContext — PreferencesViewModel. Зміни застосовуються й зберігаються одразу. -->
 	<ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
 		<StackPanel Margin="4,8,18,24" MaxWidth="900" HorizontalAlignment="Left">
 
 			<TextBlock Style="{StaticResource SectionHeader}" Margin="0,4,0,2" Text="Вигляд" />
-			<TextBlock Style="{StaticResource FieldLabel}" Text="Тема" />
+			<TextBlock Style="{StaticResource FieldLabel}"><Run Text="Тема" /><InlineUIContainer BaselineAlignment="Center"><infra:HelpButton Topic="Preferences:Theme" Title="Тема" /></InlineUIContainer></TextBlock>
 			<ComboBox ItemsSource="{Binding ThemeChoices}" DisplayMemberPath="Display" SelectedValuePath="Value" SelectedValue="{Binding Theme}"
 					  Width="320" HorizontalAlignment="Left" AutomationProperties.Name="Тема" />
 			<TextBlock Style="{StaticResource HintText}" Text="«Як у Windows» — світла або темна відповідно до теми застосунків Windows; змінюється разом із нею." />
 
-			<TextBlock Style="{StaticResource FieldLabel}" Text="Розмір шрифту журналу й редакторів" />
+			<TextBlock Style="{StaticResource FieldLabel}"><Run Text="Розмір шрифту журналу й редакторів" /><InlineUIContainer BaselineAlignment="Center"><infra:HelpButton Topic="Preferences:FontSize" Title="Розмір шрифту журналу й редакторів" /></InlineUIContainer></TextBlock>
 			<ComboBox ItemsSource="{Binding FontSizes}" SelectedItem="{Binding FontSize}" Width="120" HorizontalAlignment="Left"
 					  AutomationProperties.Name="Розмір шрифту" />
-			<CheckBox Content="Переносити довгі рядки журналу" IsChecked="{Binding LogWordWrap}" Margin="0,12,0,0" />
-			<TextBlock Style="{StaticResource FieldLabel}" Text="Максимум рядків журналу" />
+			<StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+				<CheckBox Content="Переносити довгі рядки журналу" IsChecked="{Binding LogWordWrap}" />
+				<infra:HelpButton Topic="Preferences:LogWordWrap" Title="Перенос рядків журналу" />
+			</StackPanel>
+			<TextBlock Style="{StaticResource FieldLabel}"><Run Text="Максимум рядків журналу" /><InlineUIContainer BaselineAlignment="Center"><infra:HelpButton Topic="Preferences:MaxLogLinesText" Title="Максимум рядків журналу" /></InlineUIContainer></TextBlock>
 			<TextBox Text="{Binding MaxLogLinesText, UpdateSourceTrigger=LostFocus}" Width="160" HorizontalAlignment="Left"
 					 AutomationProperties.Name="Максимум рядків журналу" />
 			<TextBlock Style="{StaticResource HintText}" Text="Від 1000 до 500000; старіші рядки відкидаються." />
 
-			<TextBlock Style="{StaticResource SectionHeader}" Text="Модуль IndexAdvisor і PowerShell" />
+			<TextBlock Style="{StaticResource SectionHeader}"><Run Text="Модуль IndexAdvisor і PowerShell" /><InlineUIContainer BaselineAlignment="Center"><infra:HelpButton Topic="Preferences:ModulePath" Title="Модуль IndexAdvisor" /></InlineUIContainer></TextBlock>
 			<TextBlock Text="{Binding Main.ModuleText}" TextWrapping="Wrap" Margin="0,6,0,0" />
 			<StackPanel Orientation="Horizontal" Margin="0,8,0,0">
 				<Button Content="Вибрати IndexAdvisor.psd1…" Command="{Binding Main.BrowseModuleCommand}" />
@@ -28,7 +32,7 @@
 						ToolTip="src\IndexAdvisor у репозиторії над програмою → Modules\IndexAdvisor поруч з exe → PSModulePath" />
 			</StackPanel>
 
-			<TextBlock Style="{StaticResource FieldLabel}" Text="Політика виконання вбудованого PowerShell (для процесу)" />
+			<TextBlock Style="{StaticResource FieldLabel}"><Run Text="Політика виконання вбудованого PowerShell (для процесу)" /><InlineUIContainer BaselineAlignment="Center"><infra:HelpButton Topic="Preferences:ExecutionPolicyName" Title="Політика виконання вбудованого PowerShell (для процесу)" /></InlineUIContainer></TextBlock>
 			<ComboBox ItemsSource="{Binding PolicyChoices}" DisplayMemberPath="Display" SelectedValuePath="Value" SelectedValue="{Binding ExecutionPolicyName}"
 					  Width="560" HorizontalAlignment="Left" AutomationProperties.Name="Політика виконання" />
 			<TextBlock Text="{Binding PolicyWarning}" Foreground="{DynamicResource StatusWarningBrush}" TextWrapping="Wrap" Margin="0,6,0,0"
@@ -36,17 +40,32 @@
 			<TextBlock Style="{StaticResource HintText}" Text="Діє з наступної операції. Групова політика Windows має пріоритет." />
 
 			<TextBlock Style="{StaticResource SectionHeader}" Text="Поведінка" />
-			<CheckBox Content="Перевіряти конфігурацію (Test-IaConfig) одразу після вибору файлу" IsChecked="{Binding AutoValidateConfig}" Margin="0,8,0,0" />
-			<CheckBox Content="Відкривати редактор конфігурації на формі налаштувань (інакше — на тексті YAML)" IsChecked="{Binding ConfigFormFirst}" Margin="0,8,0,0" />
-			<CheckBox Content="Блимати кнопкою на панелі завдань, коли модуль чекає на відповідь" IsChecked="{Binding FlashOnPrompt}" Margin="0,8,0,0" />
-			<CheckBox Content="Звуковий сигнал після завершення аналізу" IsChecked="{Binding SoundOnFinish}" Margin="0,8,0,0" />
-			<CheckBox Content="Переходити на вкладку «Результати» після запуску" IsChecked="{Binding OpenResultsAfterRun}" Margin="0,8,0,0" />
-			<TextBlock Style="{StaticResource FieldLabel}" Text="Глибина пошуку result.json у каталозі результатів" />
+			<StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+				<CheckBox Content="Перевіряти конфігурацію (Test-IaConfig) одразу після вибору файлу" IsChecked="{Binding AutoValidateConfig}" />
+				<infra:HelpButton Topic="Preferences:AutoValidateConfig" Title="Автоперевірка конфігурації" />
+			</StackPanel>
+			<StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+				<CheckBox Content="Відкривати редактор конфігурації на формі налаштувань (інакше — на тексті YAML)" IsChecked="{Binding ConfigFormFirst}" />
+				<infra:HelpButton Topic="Preferences:ConfigFormFirst" Title="Форма налаштувань першою" />
+			</StackPanel>
+			<StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+				<CheckBox Content="Блимати кнопкою на панелі завдань, коли модуль чекає на відповідь" IsChecked="{Binding FlashOnPrompt}" />
+				<infra:HelpButton Topic="Preferences:FlashOnPrompt" Title="Блимання на панелі завдань" />
+			</StackPanel>
+			<StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+				<CheckBox Content="Звуковий сигнал після завершення аналізу" IsChecked="{Binding SoundOnFinish}" />
+				<infra:HelpButton Topic="Preferences:SoundOnFinish" Title="Звуковий сигнал" />
+			</StackPanel>
+			<StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+				<CheckBox Content="Переходити на вкладку «Результати» після запуску" IsChecked="{Binding OpenResultsAfterRun}" />
+				<infra:HelpButton Topic="Preferences:OpenResultsAfterRun" Title="Перехід до результатів" />
+			</StackPanel>
+			<TextBlock Style="{StaticResource FieldLabel}"><Run Text="Глибина пошуку result.json у каталозі результатів" /><InlineUIContainer BaselineAlignment="Center"><infra:HelpButton Topic="Preferences:ResultsScanDepthText" Title="Глибина пошуку result.json у каталозі результатів" /></InlineUIContainer></TextBlock>
 			<TextBox Text="{Binding ResultsScanDepthText, UpdateSourceTrigger=LostFocus}" Width="120" HorizontalAlignment="Left"
 					 AutomationProperties.Name="Глибина пошуку" />
 			<TextBlock Style="{StaticResource HintText}" Text="0 — лише вибрана тека; 1 — out\запуск; 3 — прогін\out\запуск. Максимум 8." />
 
-			<TextBlock Style="{StaticResource SectionHeader}" Text="Шаблони конфігурацій" />
+			<TextBlock Style="{StaticResource SectionHeader}"><Run Text="Шаблони конфігурацій" /><InlineUIContainer BaselineAlignment="Center"><infra:HelpButton Topic="Preferences:TemplatesFolder" Title="Тека шаблонів" /></InlineUIContainer></TextBlock>
 			<TextBlock TextWrapping="Wrap" Margin="0,6,0,0">
 				<Run Text="Тека:" /> <Run Text="{Binding TemplatesFolder, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" />
 			</TextBlock>
@@ -57,7 +76,7 @@
 				<Button Content="Відкрити" Command="{Binding OpenTemplatesFolderCommand}" Margin="8,0,0,0" />
 			</StackPanel>
 
-			<TextBlock Style="{StaticResource SectionHeader}" Text="Налаштування програми" />
+			<TextBlock Style="{StaticResource SectionHeader}"><Run Text="Налаштування програми" /><InlineUIContainer BaselineAlignment="Center"><infra:HelpButton Topic="Preferences:SettingsFilePath" Title="Файл налаштувань програми" /></InlineUIContainer></TextBlock>
 			<TextBlock TextWrapping="Wrap" Margin="0,6,0,0">
 				<Run Text="Файл:" /> <Run Text="{Binding SettingsFilePath, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" />
 			</TextBlock>

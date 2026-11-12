@@ -61,9 +61,14 @@ internal static class HostedScripts
 			try {
 				$cfg = & (Get-Module IndexAdvisor) { param([string]$ConfigPath) Get-IaConfig -Path $ConfigPath } $Path
 				$providers = @()
+				$providerDetails = @()
 				$model = [string]$cfg.llm.model
 				if ($cfg.llm.providers -is [System.Collections.IDictionary]) {
 					$providers = @($cfg.llm.providers.Keys | ForEach-Object { [string]$_ })
+					$providerDetails = @(foreach ($name in $providers) {
+						$item = $cfg.llm.providers[$name]
+						[ordered]@{ name = $name; type = [string]$item.type; endpoint = [string]$item.endpoint; model = [string]$item.model }
+					})
 					if (-not $model -and $cfg.llm.provider -and $cfg.llm.providers.Contains([string]$cfg.llm.provider)) {
 						$model = [string]$cfg.llm.providers[[string]$cfg.llm.provider].model
 					}
@@ -80,6 +85,7 @@ internal static class HostedScripts
 					excludeDatabases = @($cfg.scope.databases.exclude | ForEach-Object { [string]$_ })
 					provider = [string]$cfg.llm.provider
 					providers = $providers
+					providerDetails = $providerDetails
 					model = $model
 					crossCheckProvider = [string]$cfg.llm.crossCheckProvider
 					analysisWindowDays = [int]$cfg.analysisWindow.days

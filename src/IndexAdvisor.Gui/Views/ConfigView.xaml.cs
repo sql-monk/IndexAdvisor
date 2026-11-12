@@ -50,6 +50,18 @@ public partial class ConfigView : UserControl
 			Editor.Focus();
 		});
 
+	/// <summary>«Додати готовий…»: меню каталогу провайдерів під кнопкою.</summary>
+	private void OnAddPresetClick(object sender, System.Windows.RoutedEventArgs e)
+	{
+		if (sender is Button { ContextMenu: { } menu } button)
+		{
+			menu.DataContext = button.DataContext;
+			menu.PlacementTarget = button;
+			menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+			menu.IsOpen = true;
+		}
+	}
+
 	private void OnErrorDoubleClick(object sender, MouseButtonEventArgs e)
 	{
 		if (ErrorList.SelectedItem is ConfigError error && _viewModel is not null)

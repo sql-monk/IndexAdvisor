@@ -1,7 +1,8 @@
 <UserControl x:Class="IndexAdvisor.Gui.Views.RunView"
 			 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
 			 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-			 xmlns:views="clr-namespace:IndexAdvisor.Gui.Views">
+			 xmlns:views="clr-namespace:IndexAdvisor.Gui.Views"
+			 xmlns:infra="clr-namespace:IndexAdvisor.Gui.Infrastructure">
 	<Grid Margin="0,8,0,8">
 		<Grid.ColumnDefinitions>
 			<ColumnDefinition Width="470" MinWidth="380" />
@@ -13,7 +14,7 @@
 		<ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
 			<StackPanel DataContext="{Binding Run}" Margin="4,0,18,24">
 
-				<TextBlock Style="{StaticResource SectionHeader}" Margin="0,4,0,2" Text="Конфігурація YAML" />
+				<TextBlock Style="{StaticResource SectionHeader}" Margin="0,4,0,2"><Run Text="Конфігурація YAML" /><InlineUIContainer BaselineAlignment="Center"><infra:HelpButton Topic="Run:ConfigPath" Title="Конфігурація YAML" /></InlineUIContainer></TextBlock>
 				<Grid Margin="0,6,0,0">
 					<Grid.ColumnDefinitions>
 						<ColumnDefinition Width="*" />
@@ -70,7 +71,7 @@
 					<ItemsControl.ItemTemplate>
 						<DataTemplate>
 							<StackPanel>
-								<TextBlock Style="{StaticResource FieldLabel}" Text="{Binding Label}" />
+								<TextBlock Style="{StaticResource FieldLabel}"><Run Text="{Binding Label, Mode=OneWay}" /><InlineUIContainer BaselineAlignment="Center"><infra:HelpButton Help="{Binding Help}" /></InlineUIContainer></TextBlock>
 								<Grid ToolTip="{Binding ToolTip}">
 									<TextBox Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
 											 AutomationProperties.AutomationId="{Binding Key}" AutomationProperties.Name="{Binding Label}" />
@@ -83,7 +84,7 @@
 				</ItemsControl>
 
 				<TextBlock Style="{StaticResource SectionHeader}" Text="Аналіз" />
-				<TextBlock Style="{StaticResource FieldLabel}" Text="Модуль" />
+				<TextBlock Style="{StaticResource FieldLabel}"><Run Text="Модуль" /><InlineUIContainer BaselineAlignment="Center"><infra:HelpButton Topic="Run:Module" Title="Модуль" /></InlineUIContainer></TextBlock>
 				<ComboBox ItemsSource="{Binding ModuleChoices}" DisplayMemberPath="Display" SelectedValuePath="Value"
 						  SelectedValue="{Binding Module}" HorizontalAlignment="Stretch" />
 				<TextBlock Style="{StaticResource HintText}" Text="{Binding ModuleHint}" />
@@ -95,16 +96,26 @@
 						<ColumnDefinition Width="*" />
 					</Grid.ColumnDefinitions>
 					<StackPanel>
-						<TextBlock Style="{StaticResource FieldLabel}" Text="Провайдер LLM" />
+						<TextBlock Style="{StaticResource FieldLabel}"><Run Text="Провайдер LLM" /><InlineUIContainer BaselineAlignment="Center"><infra:HelpButton Topic="Run:Provider" Title="Провайдер LLM" /></InlineUIContainer></TextBlock>
 						<ComboBox IsEditable="True" ItemsSource="{Binding ProviderChoices}"
 								  Text="{Binding Provider, UpdateSourceTrigger=PropertyChanged}"
 								  ToolTip="Ключ з llm.providers у конфігурації (-Provider)" />
 						<TextBlock Style="{StaticResource HintText}" Text="{Binding ProviderHint}" />
 					</StackPanel>
 					<StackPanel Grid.Column="2">
-						<TextBlock Style="{StaticResource FieldLabel}" Text="Модель" />
+						<TextBlock Style="{StaticResource FieldLabel}"><Run Text="Модель" /><InlineUIContainer BaselineAlignment="Center"><infra:HelpButton Topic="Run:Model" Title="Модель" /></InlineUIContainer></TextBlock>
 						<Grid>
-							<TextBox Text="{Binding Model, UpdateSourceTrigger=PropertyChanged}" ToolTip="Перевизначити модель провайдера (-Model)" />
+							<ComboBox IsEditable="True" IsTextSearchEnabled="False" TextSearch.TextPath="Value" ItemsSource="{Binding ModelChoices}"
+										  Text="{Binding Model, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Модель">
+									<ComboBox.ItemTemplate>
+										<DataTemplate>
+											<StackPanel>
+												<TextBlock Text="{Binding Value}" FontWeight="SemiBold" />
+												<TextBlock Text="{Binding Note}" FontSize="12" Opacity="0.7" TextWrapping="Wrap" MaxWidth="380" />
+											</StackPanel>
+										</DataTemplate>
+									</ComboBox.ItemTemplate>
+								</ComboBox>
 							<TextBlock Style="{StaticResource Watermark}" Text="з провайдера"
 									   Visibility="{Binding Model, Converter={StaticResource EmptyToVisible}}" />
 						</Grid>
@@ -119,13 +130,13 @@
 						<ColumnDefinition Width="*" />
 					</Grid.ColumnDefinitions>
 					<StackPanel>
-						<TextBlock Style="{StaticResource FieldLabel}" Text="Перехресна перевірка" />
+						<TextBlock Style="{StaticResource FieldLabel}"><Run Text="Перехресна перевірка" /><InlineUIContainer BaselineAlignment="Center"><infra:HelpButton Topic="Run:CrossCheckProvider" Title="Перехресна перевірка" /></InlineUIContainer></TextBlock>
 						<ComboBox IsEditable="True" ItemsSource="{Binding ProviderChoices}"
 								  Text="{Binding CrossCheckProvider, UpdateSourceTrigger=PropertyChanged}"
 								  ToolTip="Друга модель перевіряє рекомендації першої (-CrossCheckProvider)" />
 					</StackPanel>
 					<StackPanel Grid.Column="2">
-						<TextBlock Style="{StaticResource FieldLabel}" Text="Вікно аналізу, днів" />
+						<TextBlock Style="{StaticResource FieldLabel}"><Run Text="Вікно аналізу, днів" /><InlineUIContainer BaselineAlignment="Center"><infra:HelpButton Topic="Run:AnalysisWindowDays" Title="Вікно аналізу, днів" /></InlineUIContainer></TextBlock>
 						<Grid>
 							<TextBox Text="{Binding AnalysisWindowDaysText, UpdateSourceTrigger=PropertyChanged}" />
 							<TextBlock Style="{StaticResource Watermark}" Text="{Binding DaysHint}"
@@ -134,7 +145,7 @@
 					</StackPanel>
 				</Grid>
 
-				<TextBlock Style="{StaticResource FieldLabel}" Text="Повторний аналіз з архіву (без нового збору)" />
+				<TextBlock Style="{StaticResource FieldLabel}"><Run Text="Повторний аналіз з архіву (без нового збору)" /><InlineUIContainer BaselineAlignment="Center"><infra:HelpButton Topic="Run:FromArchive" Title="Повторний аналіз з архіву (без нового збору)" /></InlineUIContainer></TextBlock>
 				<Grid>
 					<Grid.ColumnDefinitions>
 						<ColumnDefinition Width="*" />
@@ -148,8 +159,11 @@
 
 				<Expander Header="Набори даних" Margin="0,16,0,0">
 					<StackPanel Margin="4,6,0,0">
-						<CheckBox Content="Задати набори явно" IsChecked="{Binding DatasetsExplicit}"
-								  ToolTip="Інакше — як у collector.datasets конфігурації" />
+						<StackPanel Orientation="Horizontal">
+							<CheckBox Content="Задати набори явно" IsChecked="{Binding DatasetsExplicit}"
+									  ToolTip="Інакше — як у collector.datasets конфігурації" />
+							<infra:HelpButton Topic="Run:Datasets" Title="Набори даних" />
+						</StackPanel>
 						<TextBlock Style="{StaticResource HintText}" Text="{Binding DatasetsHint}" />
 						<ItemsControl ItemsSource="{Binding Datasets}" Margin="0,6,0,0"
 									  IsEnabled="{Binding DatasetsExplicit}">
@@ -170,7 +184,7 @@
 				</Expander>
 
 				<TextBlock Style="{StaticResource SectionHeader}" Text="Результати" />
-				<TextBlock Style="{StaticResource FieldLabel}" Text="Каталог результатів" />
+				<TextBlock Style="{StaticResource FieldLabel}"><Run Text="Каталог результатів" /><InlineUIContainer BaselineAlignment="Center"><infra:HelpButton Topic="Run:OutputPath" Title="Каталог результатів" /></InlineUIContainer></TextBlock>
 				<Grid>
 					<Grid.ColumnDefinitions>
 						<ColumnDefinition Width="*" />
@@ -182,7 +196,10 @@
 					<Button Grid.Column="1" Content="…" Width="40" Margin="6,0,0,0" Command="{Binding BrowseOutputCommand}" />
 				</Grid>
 
-				<CheckBox Content="Задати формати явно" IsChecked="{Binding FormatsExplicit}" Margin="0,12,0,0" />
+				<StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+					<CheckBox Content="Задати формати явно" IsChecked="{Binding FormatsExplicit}" />
+					<infra:HelpButton Topic="Run:Formats" Title="Формати результату" />
+				</StackPanel>
 				<TextBlock Style="{StaticResource HintText}" Text="{Binding FormatsHint}" />
 				<WrapPanel Margin="0,4,0,0" IsEnabled="{Binding FormatsExplicit}">
 					<ItemsControl ItemsSource="{Binding Formats}">
@@ -207,12 +224,16 @@
 						<DataTemplate>
 							<StackPanel Orientation="Horizontal" Margin="0,2,0,0" ToolTip="{Binding ToolTip}">
 								<CheckBox IsThreeState="True" IsChecked="{Binding Value}" Content="{Binding Label}" AutomationProperties.AutomationId="{Binding Key}" />
+								<infra:HelpButton Help="{Binding Help}" />
 								<TextBlock Text="{Binding Hint}" Style="{StaticResource HintText}" Margin="10,0,0,0" VerticalAlignment="Center" />
 							</StackPanel>
 						</DataTemplate>
 					</ItemsControl.ItemTemplate>
 				</ItemsControl>
-				<CheckBox Content="Докладний журнал (-Verbose)" IsChecked="{Binding Verbose}" Margin="0,6,0,0" />
+				<StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+					<CheckBox Content="Докладний журнал (-Verbose)" IsChecked="{Binding Verbose}" />
+					<infra:HelpButton Topic="Run:Verbose" Title="Докладний журнал" />
+				</StackPanel>
 
 				<Expander Margin="0,16,0,0">
 					<Expander.Header>
@@ -224,7 +245,10 @@
 						<ItemsControl ItemsSource="{Binding UnsafeFlags}" Margin="0,4,0,0">
 							<ItemsControl.ItemTemplate>
 								<DataTemplate>
-									<CheckBox IsChecked="{Binding Value}" Content="{Binding Label}" ToolTip="{Binding ToolTip}" Margin="0,3,0,0" />
+									<StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+									<CheckBox IsChecked="{Binding Value}" Content="{Binding Label}" ToolTip="{Binding ToolTip}" />
+									<infra:HelpButton Help="{Binding Help}" />
+								</StackPanel>
 								</DataTemplate>
 							</ItemsControl.ItemTemplate>
 						</ItemsControl>
