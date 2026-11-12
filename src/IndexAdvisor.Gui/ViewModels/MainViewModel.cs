@@ -108,6 +108,8 @@ public sealed class MainViewModel : ObservableObject
 	/// </summary>
 	public async Task InitializeAsync(IReadOnlyList<string>? args = null)
 	{
+		// До першої перевірки конфігурації: заблокований модуль інакше не завантажиться.
+		CheckDownloadMark();
 		Run.LoadOptions(_settings.RunOptions);
 		foreach (var arg in args ?? [])
 		{
@@ -186,6 +188,44 @@ public sealed class MainViewModel : ObservableObject
 		_settings.ModulePath = path;
 		_settings.Save();
 		ModulePath = ModuleLocator.Resolve(path);
+		CheckDownloadMark();
 		_ = Editor.SyncFormAsync(force: true);
+	}
+
+	/// <summary>
+	/// Модуль із ZIP, завантаженого з Інтернету й розпакованого Провідником, має позначку Mark of the Web:
+	/// з політикою RemoteSigned/AllSigned PowerShell його не завантажить. Пропонуємо зняти позначку (як Unblock-File).
+	/// </summary>
+	internal void CheckDownloadMark()
+	{
+		if (!File.Exists(_modulePath) || PowerShellRunner.ProcessExecutionPolicy == Microsoft.PowerShell.ExecutionPolicy.Bypass)
+		{
+			return;
+		}
+		var directory = Path.GetDirectoryName(_modulePath)!;
+		var marked = DownloadMark.FindMarked(directory);
+		if (marked.Count == 0)
+		{
+			return;
+		}
+		var answer = DialogService.Ask(
+			$"Файли модуля IndexAdvisor позначено Windows як завантажені з Інтернету ({marked.Count}):{Environment.NewLine}{directory}{Environment.NewLine}{Environment.NewLine}" +
+			$"З політикою виконання {PowerShellRunner.ProcessExecutionPolicy} PowerShell не завантажить ці непідписані скрипти, і аналіз не запуститься.{Environment.NewLine}{Environment.NewLine}" +
+			"Розблокувати їх зараз? Це те саме, що Unblock-File: знімається лише позначка, вміст файлів не змінюється.",
+			"Файли модуля заблоковано",
+			System.Windows.MessageBoxButton.YesNo,
+			System.Windows.MessageBoxImage.Warning);
+		if (answer != System.Windows.MessageBoxResult.Yes)
+		{
+			Log.Enqueue(new HostLine(DateTime.Now, HostLineKind.Warning,
+				$"Файли модуля в {directory} заблоковано (завантажено з Інтернету): модуль не завантажиться. Розблокуйте теку: Get-ChildItem '{directory}' -Recurse | Unblock-File"));
+			return;
+		}
+		var failed = DownloadMark.Unblock(marked);
+		Log.Enqueue(HostLine.System($"Розблоковано файлів модуля: {marked.Count - failed.Count} ({directory})."));
+		foreach (var file in failed.Take(10))
+		{
+			Log.Enqueue(new HostLine(DateTime.Now, HostLineKind.Error, $"Не вдалося розблокувати: {file}"));
+		}
 	}
 }
