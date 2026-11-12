@@ -94,6 +94,10 @@ public sealed class PowerShellRunner
 		{
 			throw new OperationCanceledException("Запуск зупинено користувачем.", ex, cancellationToken);
 		}
+		catch (RuntimeException ex) when (Infrastructure.DownloadMark.IsScriptBlockedError(ex.Message))
+		{
+			throw new RuntimeException(Infrastructure.DownloadMark.WithHint(ex.Message), ex);
+		}
 		finally
 		{
 			host.UserInterface.Flush();
@@ -122,6 +126,6 @@ public sealed class PowerShellRunner
 				message = $"{message} [{shortId}]";
 			}
 		}
-		return message;
+		return Infrastructure.DownloadMark.WithHint(message);
 	}
 }

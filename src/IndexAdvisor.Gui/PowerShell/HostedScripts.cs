@@ -13,6 +13,10 @@ internal static class HostedScripts
 			[Parameter(Mandatory)][hashtable]$Arguments
 		)
 		Import-Module -Name $ModulePath -Force -ErrorAction Stop
+		if (-not (Get-Module -Name IndexAdvisor)) {
+			# Import-Module не завжди кидає виняток, коли скрипти модуля заблоковано політикою виконання.
+			throw "Модуль IndexAdvisor не завантажено ($ModulePath): $(if ($Error.Count -gt 0) { $Error[0].Exception.Message } else { 'причина невідома' })"
+		}
 		$global:LASTEXITCODE = 0
 		$results = @(Invoke-IndexAdvisor @Arguments -PassThru) |
 			Where-Object { $_ -is [System.Collections.IDictionary] -and $_.Contains('runId') }
@@ -47,6 +51,10 @@ internal static class HostedScripts
 			[Parameter(Mandatory)][string]$Path
 		)
 		Import-Module -Name $ModulePath -Force -ErrorAction Stop
+		if (-not (Get-Module -Name IndexAdvisor)) {
+			# Import-Module не завжди кидає виняток, коли скрипти модуля заблоковано політикою виконання.
+			throw "Модуль IndexAdvisor не завантажено ($ModulePath): $(if ($Error.Count -gt 0) { $Error[0].Exception.Message } else { 'причина невідома' })"
+		}
 		$check = Test-IaConfig -Path $Path
 		$summary = $null
 		if ($check.isValid) {
@@ -110,6 +118,10 @@ internal static class HostedScripts
 			[Parameter(Mandatory)][string]$Path
 		)
 		Import-Module -Name $ModulePath -Force -ErrorAction Stop
+		if (-not (Get-Module -Name IndexAdvisor)) {
+			# Import-Module не завжди кидає виняток, коли скрипти модуля заблоковано політикою виконання.
+			throw "Модуль IndexAdvisor не завантажено ($ModulePath): $(if ($Error.Count -gt 0) { $Error[0].Exception.Message } else { 'причина невідома' })"
+		}
 		New-IaConfigTemplate -Path $Path -Force -Confirm:$false
 		""";
 
@@ -119,6 +131,10 @@ internal static class HostedScripts
 			[Parameter(Mandatory)][hashtable]$Arguments
 		)
 		Import-Module -Name $ModulePath -Force -ErrorAction Stop
+		if (-not (Get-Module -Name IndexAdvisor)) {
+			# Import-Module не завжди кидає виняток, коли скрипти модуля заблоковано політикою виконання.
+			throw "Модуль IndexAdvisor не завантажено ($ModulePath): $(if ($Error.Count -gt 0) { $Error[0].Exception.Message } else { 'причина невідома' })"
+		}
 		$result = New-IaIndexMaintenance @Arguments -PassThru
 		[string]$result.directory
 		""";
@@ -134,6 +150,10 @@ internal static class HostedScripts
 			[bool]$AskCredential
 		)
 		Import-Module -Name $ModulePath -Force -ErrorAction Stop
+		if (-not (Get-Module -Name IndexAdvisor)) {
+			# Import-Module не завжди кидає виняток, коли скрипти модуля заблоковано політикою виконання.
+			throw "Модуль IndexAdvisor не завантажено ($ModulePath): $(if ($Error.Count -gt 0) { $Error[0].Exception.Message } else { 'причина невідома' })"
+		}
 		if ($AskCredential) {
 			$credential = $Host.UI.PromptForCredential('IndexAdvisor: обліковий запис SQL Server',
 				'Логін з правами на створення логінів, ролей і користувачів (або на перегляд прав для Verify).', '', '')
