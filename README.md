@@ -145,6 +145,46 @@ pwsh -NoProfile -File .\bin\IndexAdvisor.ps1 -Config D:\IndexAdvisor\run.yaml -N
 
 Кожен звіт показує, за який період роботи сервера зібрано статистику (запуск інстансу, failover, період Query Store), які набори даних зібрано, чи застосовано маскування і які небезпечні режими були ввімкнені.
 
+## Обслуговування індексів (AdaptiveIndexDefrag)
+
+Програма формує скрипти обслуговування індексів на базі [dbo.usp_AdaptiveIndexDefrag](https://github.com/microsoft/tigertoolbox/tree/master/AdaptiveIndexDefrag) з Microsoft Tiger Toolbox (перевірено з версією 1.7.5). Процедуру DBA встановлює окремо, за замовчуванням у `msdb` (`maintenance.procedureDatabase`).
+
+```powershell
+# Разом з аналізом
+Invoke-IndexAdvisor -Config .\run.yaml -Maintenance
+
+# З архіву вже зібраних даних, без нового збору й без LLM; result.json дає рекомендації на видалення
+New-IaIndexMaintenance -FromArchive .\archive\20261110_080000_AGL-SALES_5f0c1a2b.zip -Config .\run.yaml -ResultPath .\out\...\result.json
+```
+
+Що з аналізу впливає на скрипти:
+
+- пороги `rules.fragmentation` стають параметрами `@minFragmentation`, `@rebuildThreshold`, `@minPageCount`;
+- ONLINE і RESUMABLE вмикаються за редакцією та версією інстансу; SORT_IN_TEMPDB — лише без RESUMABLE;
+- порядок обробки — за кількістю range scans (якщо зібрано `usageStats`), інакше за фрагментацією;
+- індекси, які запуск рекомендує видалити, стають винятками (`exclusionMask = -1`) у `dbo.tbl_AdaptiveIndexDefrag_Exceptions`;
+- індекси, більші за `maintenance.largeIndexMb`, обслуговуються лише в дні `maintenance.largeIndexDays`, в інші дні діє `@maxPageCount`;
+- бази AG обслуговуються лише на primary-репліці, усі бази — в межах спільного ліміту `maintenance.timeLimitMinutes`;
+- у звіті є кандидати на REBUILD і REORGANIZE з розмірами та примітки (FILLFACTOR за частих розщеплень сторінок, повне журналювання в моделі FULL, офлайн-перебудова без Enterprise).
+
+Файли в `maintenance/`:
+
+- `index_maintenance.sql` — винятки й запуск процедури; за замовчуванням `@execPrint = 0` (лише друк команд для перегляду);
+- `index_maintenance_rollback.sql` — видалення доданих винятків (є, лише якщо винятки є);
+- `index_maintenance_job.sql` — завдання SQL Agent (розклад `maintenance.scheduleDays` о `maintenance.startTime`, другий крок — очищення журналів процедури); наявне завдання замінюється лише за `@replaceExisting = 1`;
+- `index_maintenance_job_rollback.sql` — видалення завдання.
+
+```yaml
+maintenance:
+  procedureDatabase: msdb
+  jobName: IndexAdvisor - AdaptiveIndexDefrag
+  scheduleDays: [Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday]
+  startTime: '01:00'
+  timeLimitMinutes: 240
+  largeIndexMb: 20480
+  largeIndexDays: [Saturday, Sunday]
+```
+
 ## Безпека
 
 - Кожен запит — рівно одна інструкція SELECT (перевірка ScriptDom), джерела — лише `sys.*`, `INFORMATION_SCHEMA.*` і Query Store; до кожного батча додаються `READ UNCOMMITTED`, `LOCK_TIMEOUT`, `DEADLOCK_PRIORITY LOW`, а до запиту — `OPTION (MAXDOP 1)` і ліміт рядків.

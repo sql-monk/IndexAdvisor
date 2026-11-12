@@ -69,7 +69,7 @@ tests/<Тека>/*.Tests.ps1, tests/Security/, tests/Fixtures/, tests/TestHelper
 | Функція | Результат |
 |---|---|
 | `Invoke-IaSqlQuery -Server -Database -Query [-Parameters] [-Fetch] [-Skip] [-Purpose] [-ApplicationIntent] [-Config]` | Конверт (5.10). Єдиний конвеєр для колектора й інструментів (розділ 3.1.1). `-Config` за замовчуванням — з поточної сесії, інакше `Get-IaDefaultConfig`. |
-| `Invoke-IaDbCommand -ConnectionString -CommandText [-Parameters] [-CommandTimeoutSeconds] [-MaxRows]` | Шов драйвера: `{ columns = @(@{name; type}); rows = @(,[object[]]); messages; hasMoreRows }`. Відкриває й закриває підключення в межах виклику. |
+| `Invoke-IaDbCommand -ConnectionString -CommandText [-Parameters] [-CommandTimeoutSeconds] [-MaxRows]` | Шов драйвера: `{ columns = @(@{name; type}); rows = @(,[object[]]); messages; hasMoreRows }`. Відкриває й закриває підключення в межах виклику. Мережевий обрив або тайм-аут до входу (pre-login: 10053, 10054, 10060, 10061, 64, 121, 233, -2) — до двох повторів через 1 і 3 с, кожен записується в `messages`; помилки входу не повторюються. |
 | `Test-IaSelectOnly -Sql` | `{ isValid; statementCount; errors }` — рівно один батч, одна `SelectStatement` без `INTO`. |
 | `Test-IaSystemSourcesOnly -Sql` | `{ isValid; errors }` — джерела лише `sys.*`, `INFORMATION_SCHEMA.*`, CTE і вбудовані функції. |
 | `ConvertTo-IaSqlFragment -Sql` | `{ fragment; errors; parserName }` — для валідації синтаксису (Rules) і очищення літералів (LLM). |
@@ -168,6 +168,9 @@ tests/<Тека>/*.Tests.ps1, tests/Security/, tests/Fixtures/, tests/TestHelper
 | `Save-IaRunToRepository -RunResult -Config` | Запис у репозиторій (розділ 8) через внутрішню `Invoke-IaOutRepositoryCommand` (параметризовані INSERT/DELETE лише в базу `repository.database`; відмова, якщо ця база є серед цільових). |
 | `Get-IaRecommendationHistory -ObjectKeys -Module -Config` | IndexVerdict[] з репозиторію. |
 | `Remove-IaExpiredHistory -Config` | Кількість видалених запусків. |
+| `Get-IaMaintenancePlan -Snapshot -Config [-Recommendations] [-RunId]` | План обслуговування для `dbo.usp_AdaptiveIndexDefrag` (Tiger Toolbox, перевірено з 1.7.5): для кожної бази ONLINE (AG — з primary) кандидати REBUILD/REORGANIZE за `physical` і `rules.fragmentation`, винятки (`DropIndex`, не `Failed` → `exclusionMask = -1`, за `excludeDropCandidates`), параметри процедури (ONLINE/RESUMABLE за `supportsOnlineIndexOps` і версією ≥ 14, `@defragOrderColumn = range_scan_count`, якщо зібрано `usageStats`), примітки. Великі індекси (`maintenance.largeIndexMb`) — лише в `largeIndexDays`, в інші дні `@maxPageCount`. Записується в `RunResult.maintenance`. |
+| `Export-IaMaintenanceFiles -Plan -Directory` | `maintenance/index_maintenance.sql` (винятки + запуск; `@execPrint = 0` — лише друк), `index_maintenance_rollback.sql` (якщо є винятки), `index_maintenance_job.sql` (SQL Agent; заміна наявного лише за `@replaceExisting = 1`), `index_maintenance_job_rollback.sql`. `Export-IaReport` викликає її, якщо `RunResult.maintenance` не `$null`, і додає розділ «Обслуговування індексів» у звіт. |
+| `New-IaIndexMaintenance -FromArchive [-Config] [-ResultPath] [-OutputPath] [-PassThru]` | Публічна команда: план і скрипти з архіву без збору й LLM; `-ResultPath` — `result.json`, з якого беруться рекомендації `DropIndex`. Каталог `output.path/<час>_<server>_maintenance/` з `maintenance/*.sql` і `maintenance_plan.md`. |
 
 ### 3.7 CLI
 | Функція | Результат |
@@ -194,7 +197,7 @@ tests/<Тека>/*.Tests.ps1, tests/Security/, tests/Fixtures/, tests/TestHelper
    8. `Invoke-IaAnalysisLoop` → `New-IaRecommendation` для кожної чернетки.
    9. `llm.crossCheckProvider` → `Invoke-IaCrossCheck`.
    10. Для кожної рекомендації: `dataPeriod` (відповідної бази), `Test-IaRecommendation`; для DropIndex — `Get-IaRecommendationHistory` + `Get-IaDropEligibility`; `warnings` += активні unsafe-прапорці, попередження вимкнених наборів, короткого періоду, неповних умов 4.4.
-   11. `New-IaObjectVerdicts`; `Export-IaReport`; `Save-IaRunToRepository` (якщо `repository.enabled`); `Remove-IaExpiredHistory`; `Remove-IaExpiredArchives`.
+   11. `New-IaObjectVerdicts`; `Get-IaMaintenancePlan` (якщо `maintenance.enabled`; збій — попередження); `Export-IaReport`; `Save-IaRunToRepository` (якщо `repository.enabled`); `Remove-IaExpiredHistory`; `Remove-IaExpiredArchives`.
 5. `Stop-IaSession`; код повернення — найгірший серед запусків (розділ 11).
 
 ## 5. Об'єкти даних
@@ -299,6 +302,7 @@ WHERE s.name = @SchemaName AND t.name = @TableName;
 | `-NoArchive` | `archive.enabled = $false` |
 | `-NonInteractive` / `-AutoApprove` | `run.nonInteractive` / `llm.autoApproveToolRequests` |
 | `-LocalOnly` / `-MaskNames` | `llm.localOnly` / `llm.maskNames` |
+| `-Maintenance` | `maintenance.enabled = $true` |
 | `-UnsafeDisableSelectCheck`, `-UnsafeDisableMaxdop`, `-UnsafeDisableTimeouts`, `-UnsafeAllowFreeQuery`, `-AllowNonStandardLogin` | `unsafe.disableSelectCheck`, `unsafe.disableMaxdop`, `unsafe.disableTimeouts`, `unsafe.allowFreeQuery`, `unsafe.allowNonStandardLogin` |
 
 ## 8. Схема репозиторію (база `IndexAdvisor`, схема `Advisor`)

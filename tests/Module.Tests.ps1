@@ -11,7 +11,7 @@ Describe 'Модуль IndexAdvisor' {
 
 	It 'експортує лише публічні команди з маніфесту' {
 		$exported = (Get-Module IndexAdvisor).ExportedFunctions.Keys | Sort-Object
-		$exported | Should -Be @('Install-IaServiceLogin', 'Invoke-IndexAdvisor', 'New-IaConfigTemplate', 'Test-IaConfig')
+		$exported | Should -Be @('Install-IaServiceLogin', 'Invoke-IndexAdvisor', 'New-IaConfigTemplate', 'New-IaIndexMaintenance', 'Test-IaConfig')
 	}
 
 	It 'має всі контрактні функції' {

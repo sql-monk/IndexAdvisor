@@ -272,6 +272,7 @@ function New-IaRunResult {
 		findings = @()
 		recommendations = @()
 		verdicts = @()
+		maintenance = $null
 		warnings = @()
 		errors = @()
 		status = 'Succeeded'

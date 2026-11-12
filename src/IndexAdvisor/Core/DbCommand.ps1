@@ -70,6 +70,56 @@ function Get-IaCoreErrorCode {
 	return 'SqlError'
 }
 
+# Мережеві обриви до входу (pre-login), після яких повторне підключення зазвичай вдається (VPN, що піднімає тунель на першому з'єднанні):
+# 10053/10054 — з'єднання розірвано, 10060 — тайм-аут TCP, 10061 — відмова в підключенні, 64 — мережеве ім'я недоступне,
+# 121 — тайм-аут семафора, 233 — немає процесу на іншому кінці, -2 — тайм-аут підключення (у фазі Open це лише рукостискання,
+# а не запит). Помилки входу (18456 тощо) не повторюються: логін не блокується.
+$script:IaCoreTransientConnectErrors = @(-2, 64, 121, 233, 10053, 10054, 10060, 10061)
+$script:IaCoreConnectRetryDelaysMs = @(1000, 3000)
+
+function Test-IaCoreTransientConnectError {
+	<# $true, якщо виняток підключення — мережевий обрив до входу (SqlException з номером зі списку $script:IaCoreTransientConnectErrors). #>
+	[CmdletBinding()]
+	param([AllowNull()][System.Exception]$Exception)
+	$sqlException = Get-IaCoreSqlException -Exception $Exception
+	if ($null -eq $sqlException) {
+		return $false
+	}
+	$numbers = @([int]$sqlException.Number) + @(foreach ($sqlError in @($sqlException.Errors)) { if ($null -ne $sqlError) { [int]$sqlError.Number } })
+	return @($numbers | Where-Object { $_ -in $script:IaCoreTransientConnectErrors }).Count -gt 0
+}
+
+function Open-IaCoreSqlConnection {
+	<# Відкриває підключення, створене фабрикою NewConnection. При мережевому обриві до входу повторює з паузами RetryDelaysMs,
+	   кожна спроба — нове підключення (Pooling = false, тож кешованої помилки пулу немає). Кожен повтор записується в Messages.
+	   Повертає відкрите підключення; інша помилка чи вичерпані повтори — виняток останньої спроби. #>
+	[CmdletBinding()]
+	param(
+		[Parameter(Mandatory)][scriptblock]$NewConnection,
+		[Parameter(Mandatory)][AllowEmptyCollection()][System.Collections.Generic.List[string]]$Messages,
+		[int[]]$RetryDelaysMs = $script:IaCoreConnectRetryDelaysMs
+	)
+	$attempt = 0
+	while ($true) {
+		$connection = & $NewConnection
+		try {
+			$connection.Open()
+			return $connection
+		}
+		catch {
+			$connection.Dispose()
+			if ($attempt -ge $RetryDelaysMs.Count -or -not (Test-IaCoreTransientConnectError -Exception $_.Exception)) {
+				throw
+			}
+			$sqlException = Get-IaCoreSqlException -Exception $_.Exception
+			$Messages.Add(("Підключення обірвалося до входу (Msg {0}); повтор {1} з {2} через {3} мс." -f $sqlException.Number, ($attempt + 1),
+					$RetryDelaysMs.Count, $RetryDelaysMs[$attempt]))
+			Start-Sleep -Milliseconds $RetryDelaysMs[$attempt]
+			$attempt++
+		}
+	}
+}
+
 function Invoke-IaDbCommand {
 	<# Шов драйвера: єдине місце, що відкриває SqlConnection (Microsoft.Data.SqlClient). У юніт-тестах мокається.
 	   Parameters — масив @{ name = '@Name'; value = ...; sqlType = 'NVarChar'|'Int'|... }.
@@ -89,15 +139,18 @@ function Invoke-IaDbCommand {
 	$phase = 'Connect'
 	try {
 		Initialize-IaCoreSqlClient
-		$connection = New-Object -TypeName 'Microsoft.Data.SqlClient.SqlConnection' -ArgumentList $ConnectionString
 		$handler = {
 			param($source, $infoArgs)
 			foreach ($sqlError in $infoArgs.Errors) {
 				$messages.Add([string]$sqlError.Message)
 			}
 		}.GetNewClosure()
-		$connection.add_InfoMessage($handler)
-		$connection.Open()
+		$factory = {
+			$newConnection = New-Object -TypeName 'Microsoft.Data.SqlClient.SqlConnection' -ArgumentList $ConnectionString
+			$newConnection.add_InfoMessage($handler)
+			$newConnection
+		}.GetNewClosure()
+		$connection = Open-IaCoreSqlConnection -NewConnection $factory -Messages $messages
 		$phase = 'Execute'
 		$command = $connection.CreateCommand()
 		$command.CommandText = $CommandText

@@ -14,6 +14,7 @@
 		'New-IaConfigTemplate'
 		'Test-IaConfig'
 		'Install-IaServiceLogin'
+		'New-IaIndexMaintenance'
 	)
 	CmdletsToExport = @()
 	VariablesToExport = @()

@@ -39,7 +39,8 @@ param(
 	[switch]$UnsafeDisableMaxdop,
 	[switch]$UnsafeDisableTimeouts,
 	[switch]$UnsafeAllowFreeQuery,
-	[switch]$AllowNonStandardLogin
+	[switch]$AllowNonStandardLogin,
+	[switch]$Maintenance
 )
 
 $exitCode = 9

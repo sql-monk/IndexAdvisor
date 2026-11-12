@@ -82,6 +82,7 @@ function ConvertTo-IaCliOverrides {
 		UnsafeDisableTimeouts = 'unsafe.disableTimeouts'
 		UnsafeAllowFreeQuery = 'unsafe.allowFreeQuery'
 		AllowNonStandardLogin = 'unsafe.allowNonStandardLogin'
+		Maintenance = 'maintenance.enabled'
 	}
 	foreach ($name in $switches.Keys) {
 		if ($BoundParameters.Contains($name)) {
@@ -702,6 +703,16 @@ function Invoke-IaCliServerRun {
 			}
 		}
 		$run.verdicts = @($verdicts.ToArray())
+
+		# Обслуговування індексів (AdaptiveIndexDefrag): план за зібраними даними й рекомендаціями; збій не зупиняє запуск.
+		if ($cfg.maintenance -and $cfg.maintenance.enabled) {
+			try {
+				$run.maintenance = Get-IaMaintenancePlan -Snapshot $snapshot -Config $cfg -Recommendations @($run.recommendations) -RunId $run.runId
+			}
+			catch {
+				Add-IaCliRunWarning -Run $run -Message "План обслуговування індексів не сформовано: $($_.Exception.Message)"
+			}
+		}
 		if (@($moduleState.Values | Where-Object { $_.completed }).Count -eq 0 -and $run.recommendations.Count -eq 0) {
 			$fatal = $true
 		}
@@ -790,6 +801,7 @@ function Invoke-IndexAdvisor {
 		[switch]$UnsafeDisableTimeouts,
 		[switch]$UnsafeAllowFreeQuery,
 		[switch]$AllowNonStandardLogin,
+		[switch]$Maintenance,
 		[switch]$PassThru
 	)
 	$exitCodes = $script:IaExitCodes

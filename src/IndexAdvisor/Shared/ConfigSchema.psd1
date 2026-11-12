@@ -276,6 +276,35 @@
 			)
 		}
 		@{
+			Name = 'maintenance'
+			Type = 'object'
+			Description = 'Скрипти обслуговування індексів через dbo.usp_AdaptiveIndexDefrag (Microsoft Tiger Toolbox) і завдання SQL Agent'
+			Properties = @(
+				@{ Name = 'enabled'; Type = 'bool'; Default = $false; Description = 'Формувати скрипти обслуговування в кожному запуску (maintenance/ у каталозі результатів)' }
+				@{ Name = 'procedureDatabase'; Type = 'string'; Default = 'msdb'; Description = 'База, де встановлено usp_AdaptiveIndexDefrag і її таблиці' }
+				@{ Name = 'jobName'; Type = 'string'; Default = 'IndexAdvisor - AdaptiveIndexDefrag'; Description = 'Назва завдання SQL Agent' }
+				@{ Name = 'jobOwner'; Type = 'string'; Default = ''; Description = 'Власник завдання (порожньо — логін, що виконує скрипт)' }
+				@{
+					Name = 'scheduleDays'; Type = 'array'; Items = 'string'; Enum = @('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday')
+					Default = @('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'); Description = 'Дні запуску завдання'
+				}
+				@{ Name = 'startTime'; Type = 'string'; Default = '01:00'; Description = 'Час запуску HH:mm (час сервера)' }
+				@{ Name = 'timeLimitMinutes'; Type = 'int'; Default = 240; Min = 10; Max = 1440; Description = 'Ліміт часу на всі бази за один запуск, хв' }
+				@{ Name = 'largeIndexMb'; Type = 'number'; Default = 20480; Min = 0; Max = 100000000; Description = 'Індекси, більші за цей розмір, обслуговуються лише в дні largeIndexDays (0 — без обмеження), МБ' }
+				@{
+					Name = 'largeIndexDays'; Type = 'array'; Items = 'string'; Enum = @('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday')
+					Default = @('Saturday', 'Sunday'); Description = 'Дні обслуговування великих індексів'
+				}
+				@{ Name = 'columnstoreRebuildPercent'; Type = 'number'; Default = 10; Min = 0; Max = 100; Description = 'Поріг перебудови columnstore (частка видалених рядків), %' }
+				@{ Name = 'resumableRebuild'; Type = 'bool'; Default = $true; Description = 'RESUMABLE = ON для онлайн-перебудови (Enterprise, SQL Server 2017+)' }
+				@{ Name = 'sortInTempDb'; Type = 'bool'; Default = $true; Description = 'SORT_IN_TEMPDB = ON (не застосовується разом з RESUMABLE)' }
+				@{ Name = 'maxDop'; Type = 'int'; Default = 0; Min = 0; Max = 64; Description = 'MAXDOP для перебудови й статистики (0 — налаштування сервера)' }
+				@{ Name = 'updateStatistics'; Type = 'bool'; Default = $true; Description = 'Оновлювати статистику після REORGANIZE' }
+				@{ Name = 'excludeDropCandidates'; Type = 'bool'; Default = $true; Description = 'Не обслуговувати індекси, які запуск рекомендує видалити' }
+				@{ Name = 'purgeLogs'; Type = 'bool'; Default = $true; Description = 'Другий крок завдання: usp_AdaptiveIndexDefrag_PurgeLogs' }
+			)
+		}
+		@{
 			Name = 'run'
 			Type = 'object'
 			Description = 'Режим запуску'

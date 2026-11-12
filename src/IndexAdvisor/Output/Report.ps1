@@ -449,6 +449,11 @@ function New-IaOutReportBlocks {
 			$blocks.Add($block)
 		}
 	}
+	if ($run.maintenance) {
+		foreach ($block in (New-IaMaintenanceReportBlocks -Plan $run.maintenance)) {
+			$blocks.Add($block)
+		}
+	}
 	return , @($blocks.ToArray())
 }
 
@@ -774,6 +779,11 @@ function Export-IaReport {
 		foreach ($item in @($items | Where-Object { -not $_.rejected })) {
 			$files.Add((Write-IaOutFile -Path (Join-Path $sqlDirectory "$($item.fileBase).sql") -Text (New-IaOutSqlFileText -RunResult $RunResult -Item $item -Kind Execute)))
 			$files.Add((Write-IaOutFile -Path (Join-Path $sqlDirectory "$($item.fileBase)_rollback.sql") -Text (New-IaOutSqlFileText -RunResult $RunResult -Item $item -Kind Rollback)))
+		}
+	}
+	if ($RunResult.maintenance -and $directory) {
+		foreach ($file in (Export-IaMaintenanceFiles -Plan $RunResult.maintenance -Directory $directory)) {
+			$files.Add($file)
 		}
 	}
 	if ('Json' -in $formats) {
