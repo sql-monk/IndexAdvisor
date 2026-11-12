@@ -601,7 +601,13 @@ function Invoke-IaCliServerRun {
 			# Без жодної таблиці в контексті (бази не зібрано чи пропущено через права) модель не викликається: аналізувати нічого.
 			if (@($state.context.includedObjectKeys | Where-Object { $_ }).Count -eq 0 -and -not ($module -eq 'Partitioning' -and $partitionDraftEntries.Count -gt 0)) {
 				$state.completed = $true
-				Add-IaCliRunWarning -Run $run -Message "Аналіз моделлю ($module) пропущено: у зібраних даних немає жодної таблиці (бази не зібрано або пропущено — див. попередження вище)."
+				$reason = if ($module -eq 'Partitioning') {
+					'немає секціонованих таблиць і кандидатів за порогами partitioning (minSizeGb, minRowCount)'
+				}
+				else {
+					'у зібраних даних немає жодної таблиці (бази не зібрано або пропущено — див. попередження вище)'
+				}
+				Add-IaCliRunWarning -Run $run -Informational:($module -eq 'Partitioning') -Message "Аналіз моделлю ($module) пропущено: $reason."
 				continue
 			}
 			try {
