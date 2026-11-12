@@ -1,0 +1,180 @@
+<UserControl x:Class="IndexAdvisor.Gui.Views.ToolsView"
+			 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+			 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+			 xmlns:views="clr-namespace:IndexAdvisor.Gui.Views">
+	<!-- DataContext — ToolsViewModel. -->
+	<UserControl.Resources>
+		<Style x:Key="PathRow" TargetType="Grid">
+			<Setter Property="Margin" Value="0,0,0,0" />
+		</Style>
+	</UserControl.Resources>
+
+	<Grid Margin="0,8,0,8">
+		<Grid.ColumnDefinitions>
+			<ColumnDefinition Width="560" MinWidth="420" />
+			<ColumnDefinition Width="Auto" />
+			<ColumnDefinition Width="*" MinWidth="360" />
+		</Grid.ColumnDefinitions>
+
+		<ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+			<StackPanel Margin="4,0,18,24">
+
+				<!-- New-IaIndexMaintenance -->
+				<Border Style="{StaticResource Card}">
+					<StackPanel>
+						<TextBlock Text="Скрипти обслуговування індексів з архіву" FontSize="16" FontWeight="SemiBold" />
+						<TextBlock Style="{StaticResource HintText}"
+								   Text="New-IaIndexMaintenance: скрипти dbo.usp_AdaptiveIndexDefrag і завдання SQL Agent за вже зібраними даними, без нового збору й без LLM. Параметри обслуговування — у розділі «Обслуговування індексів» конфігурації." />
+
+						<TextBlock Style="{StaticResource FieldLabel}" Text="Архів зібраних даних (-FromArchive) *" />
+						<Grid>
+							<Grid.ColumnDefinitions>
+								<ColumnDefinition Width="*" />
+								<ColumnDefinition Width="Auto" />
+							</Grid.ColumnDefinitions>
+							<TextBox Text="{Binding MaintenanceArchive, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Архів" />
+							<TextBlock Style="{StaticResource Watermark}" Text="архів *.zip з каталогу archive.path"
+									   Visibility="{Binding MaintenanceArchive, Converter={StaticResource EmptyToVisible}}" />
+							<Button Grid.Column="1" Content="…" Width="40" Margin="6,0,0,0" Command="{Binding BrowseMaintenanceArchiveCommand}" />
+						</Grid>
+
+						<TextBlock Style="{StaticResource FieldLabel}" Text="Конфігурація (-Config)" />
+						<Grid>
+							<Grid.ColumnDefinitions>
+								<ColumnDefinition Width="*" />
+								<ColumnDefinition Width="Auto" />
+							</Grid.ColumnDefinitions>
+							<TextBox Text="{Binding MaintenanceConfig, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Конфігурація" />
+							<TextBlock Style="{StaticResource Watermark}" Text="{Binding MaintenanceConfigHint}"
+									   Visibility="{Binding MaintenanceConfig, Converter={StaticResource EmptyToVisible}}" />
+							<Button Grid.Column="1" Content="…" Width="40" Margin="6,0,0,0" Command="{Binding BrowseMaintenanceConfigCommand}" />
+						</Grid>
+
+						<TextBlock Style="{StaticResource FieldLabel}" Text="Результат запуску (-ResultPath)" />
+						<Grid>
+							<Grid.ColumnDefinitions>
+								<ColumnDefinition Width="*" />
+								<ColumnDefinition Width="Auto" />
+							</Grid.ColumnDefinitions>
+							<TextBox Text="{Binding MaintenanceResult, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="result.json" />
+							<TextBlock Style="{StaticResource Watermark}" Text="result.json: рекомендовані до видалення індекси стануть винятками"
+									   Visibility="{Binding MaintenanceResult, Converter={StaticResource EmptyToVisible}}" />
+							<Button Grid.Column="1" Content="…" Width="40" Margin="6,0,0,0" Command="{Binding BrowseMaintenanceResultCommand}" />
+						</Grid>
+
+						<TextBlock Style="{StaticResource FieldLabel}" Text="Каталог результатів (-OutputPath)" />
+						<Grid>
+							<Grid.ColumnDefinitions>
+								<ColumnDefinition Width="*" />
+								<ColumnDefinition Width="Auto" />
+							</Grid.ColumnDefinitions>
+							<TextBox Text="{Binding MaintenanceOutput, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Каталог результатів" />
+							<TextBlock Style="{StaticResource Watermark}" Text="з конфігурації (output.path)"
+									   Visibility="{Binding MaintenanceOutput, Converter={StaticResource EmptyToVisible}}" />
+							<Button Grid.Column="1" Content="…" Width="40" Margin="6,0,0,0" Command="{Binding BrowseMaintenanceOutputCommand}" />
+						</Grid>
+
+						<TextBox Text="{Binding MaintenanceCommand, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" Margin="0,12,0,0"
+								 FontFamily="{StaticResource MonoFont}" FontSize="12" AutomationProperties.Name="Команда" />
+						<StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+							<Button Content="Сформувати скрипти" Command="{Binding RunMaintenanceCommand}" Style="{DynamicResource AccentButtonStyle}" />
+							<Button Content="Відкрити теку" Command="{Binding OpenMaintenanceDirectoryCommand}" Margin="8,0,0,0" />
+							<Button Content="Копіювати команду" Command="{Binding CopyMaintenanceCommand}" Margin="8,0,0,0" />
+						</StackPanel>
+					</StackPanel>
+				</Border>
+
+				<!-- Install-IaServiceLogin -->
+				<Border Style="{StaticResource Card}" Margin="0,16,0,0">
+					<StackPanel>
+						<TextBlock Text="Штатний логін index-advisor" FontSize="16" FontWeight="SemiBold" />
+						<TextBlock Style="{StaticResource HintText}"
+								   Text="Install-IaServiceLogin: обгортка sql/Setup-IndexAdvisorLogin.sql. Права лише на метадані через ролі; пароль SQL-логіна генерується й одразу зберігається в SecretManagement. Verify лише читає фактичні права." />
+
+						<TextBlock Style="{StaticResource FieldLabel}" Text="Сервери (-SqlInstance) *" />
+						<Grid>
+							<TextBox Text="{Binding LoginServers, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Сервери" />
+							<TextBlock Style="{StaticResource Watermark}" Text="SQL01, SQL02 — повні імена інстансів"
+									   Visibility="{Binding LoginServers, Converter={StaticResource EmptyToVisible}}" />
+						</Grid>
+
+						<TextBlock Style="{StaticResource FieldLabel}" Text="Режим (-Mode)" />
+						<ComboBox ItemsSource="{Binding LoginModes}" DisplayMemberPath="Display" SelectedValuePath="Value" SelectedValue="{Binding LoginMode}" />
+
+						<TextBlock Style="{StaticResource FieldLabel}" Text="Бази (-Database)" />
+						<Grid>
+							<TextBox Text="{Binding LoginDatabases, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Бази" />
+							<TextBlock Style="{StaticResource Watermark}" Text="порожньо — усі бази"
+									   Visibility="{Binding LoginDatabases, Converter={StaticResource EmptyToVisible}}" />
+						</Grid>
+
+						<Grid Margin="0,0,0,0">
+							<Grid.ColumnDefinitions>
+								<ColumnDefinition Width="*" />
+								<ColumnDefinition Width="12" />
+								<ColumnDefinition Width="*" />
+							</Grid.ColumnDefinitions>
+							<StackPanel>
+								<TextBlock Style="{StaticResource FieldLabel}" Text="Логін (-LoginName)" />
+								<Grid>
+									<TextBox Text="{Binding LoginName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Логін" />
+									<TextBlock Style="{StaticResource Watermark}" Text="{Binding LoginNameHint}"
+											   Visibility="{Binding LoginName, Converter={StaticResource EmptyToVisible}}" />
+								</Grid>
+							</StackPanel>
+							<StackPanel Grid.Column="2">
+								<TextBlock Style="{StaticResource FieldLabel}" Text="Секрет (-SecretName)" />
+								<Grid>
+									<TextBox Text="{Binding SecretName, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Секрет" />
+									<TextBlock Style="{StaticResource Watermark}" Text="IndexAdvisor-&lt;логін&gt;"
+											   Visibility="{Binding SecretName, Converter={StaticResource EmptyToVisible}}" />
+								</Grid>
+							</StackPanel>
+						</Grid>
+
+						<TextBlock Style="{StaticResource FieldLabel}" Text="Сховище SecretManagement (-Vault)" />
+						<Grid>
+							<TextBox Text="{Binding Vault, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Сховище" />
+							<TextBlock Style="{StaticResource Watermark}" Text="сховище за замовчуванням"
+									   Visibility="{Binding Vault, Converter={StaticResource EmptyToVisible}}" />
+						</Grid>
+
+						<CheckBox Content="Windows-обліковий запис (-WindowsLogin, ім'я DOMAIN\user)" IsChecked="{Binding WindowsLogin}" Margin="0,12,0,0" />
+						<CheckBox Content="Підключатися з обліковими даними SQL (-SqlCredential, запит у діалозі)" IsChecked="{Binding AskCredential}" Margin="0,6,0,0" />
+
+						<TextBox Text="{Binding LoginCommand, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" Margin="0,12,0,0"
+								 FontFamily="{StaticResource MonoFont}" FontSize="12" AutomationProperties.Name="Команда" />
+						<StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+							<Button Content="Виконати" Command="{Binding RunLoginCommand}" Style="{DynamicResource AccentButtonStyle}" />
+							<Button Content="Копіювати команду" Command="{Binding CopyLoginCommand}" Margin="8,0,0,0" />
+						</StackPanel>
+					</StackPanel>
+				</Border>
+			</StackPanel>
+		</ScrollViewer>
+
+		<GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Center" VerticalAlignment="Stretch" Background="Transparent" />
+
+		<Grid Grid.Column="2" Margin="10,0,0,0">
+			<Grid.RowDefinitions>
+				<RowDefinition Height="Auto" />
+				<RowDefinition Height="*" />
+			</Grid.RowDefinitions>
+			<Border Style="{StaticResource Card}" Margin="0,0,0,10">
+				<DockPanel>
+					<Button DockPanel.Dock="Right" Content="■  Зупинити" Command="{Binding StopCommand}" Padding="14,6" />
+					<StackPanel VerticalAlignment="Center">
+						<StackPanel Orientation="Horizontal">
+							<Ellipse Width="10" Height="10" Margin="0,0,8,0" VerticalAlignment="Center"
+									 Fill="{Binding StatusSeverity, Converter={StaticResource StatusBrush}}" />
+							<TextBlock Text="{Binding StatusText, TargetNullValue='Готово.'}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+						</StackPanel>
+						<ProgressBar IsIndeterminate="{Binding IsRunning}" Height="3" Margin="0,8,0,0"
+									 Visibility="{Binding IsRunning, Converter={StaticResource BoolToVisibility}}" />
+					</StackPanel>
+				</DockPanel>
+			</Border>
+			<views:LogView Grid.Row="1" DataContext="{Binding Log}" />
+		</Grid>
+	</Grid>
+</UserControl>

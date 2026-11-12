@@ -2,7 +2,6 @@
 			 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
 			 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 			 xmlns:infra="clr-namespace:IndexAdvisor.Gui.Infrastructure"
-			 ThemeMode="Light"
 			 ShutdownMode="OnMainWindowClose">
 	<Application.Resources>
 		<ResourceDictionary>
@@ -12,9 +11,7 @@
 			<infra:BoolToVisibilityConverter x:Key="BoolToVisibility" />
 			<infra:InverseBoolConverter x:Key="InverseBool" />
 
-			<SolidColorBrush x:Key="StatusErrorBrush" Color="#C42B1C" />
-			<SolidColorBrush x:Key="StatusWarningBrush" Color="#C27C0E" />
-			<SolidColorBrush x:Key="StatusSuccessBrush" Color="#1E8E3E" />
+			<!-- StatusErrorBrush, StatusWarningBrush, BadgeForegroundBrush тощо реєструє ThemePalette.Register (залежать від теми). -->
 
 			<FontFamily x:Key="MonoFont">Cascadia Mono, Consolas, Courier New</FontFamily>
 

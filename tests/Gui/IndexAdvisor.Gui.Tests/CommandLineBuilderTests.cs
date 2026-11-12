@@ -92,10 +92,10 @@ public class CommandLineBuilderTests
 	{
 		var options = new RunOptions { ConfigPath = @"D:\Index Advisor\run.yaml", Servers = "SQL01;SQL02" };
 
-		var command = CommandLineBuilder.FormatPwshFile(options, @"C:\repos\Tycho\bin\IndexAdvisor.ps1");
+		var command = CommandLineBuilder.FormatPwshFile(options, @"C:\IndexAdvisor\bin\IndexAdvisor.ps1");
 
 		Assert.Equal(
-			@"pwsh -NoProfile -File C:\repos\Tycho\bin\IndexAdvisor.ps1 -Config ""D:\Index Advisor\run.yaml"" -Server SQL01,SQL02 -NonInteractive",
+			@"pwsh -NoProfile -File C:\IndexAdvisor\bin\IndexAdvisor.ps1 -Config ""D:\Index Advisor\run.yaml"" -Server SQL01,SQL02 -NonInteractive",
 			command);
 	}
 

@@ -112,4 +112,39 @@ internal static class HostedScripts
 		Import-Module -Name $ModulePath -Force -ErrorAction Stop
 		New-IaConfigTemplate -Path $Path -Force -Confirm:$false
 		""";
+
+	public const string NewMaintenance = """
+		param(
+			[Parameter(Mandatory)][string]$ModulePath,
+			[Parameter(Mandatory)][hashtable]$Arguments
+		)
+		Import-Module -Name $ModulePath -Force -ErrorAction Stop
+		$result = New-IaIndexMaintenance @Arguments -PassThru
+		[string]$result.directory
+		""";
+
+	/// <summary>
+	/// Install-IaServiceLogin; облікові дані адміністратора SQL — через діалог хоста (PromptForCredential).
+	/// Результат кожного сервера друкується в журнал.
+	/// </summary>
+	public const string ServiceLogin = """
+		param(
+			[Parameter(Mandatory)][string]$ModulePath,
+			[Parameter(Mandatory)][hashtable]$Arguments,
+			[bool]$AskCredential
+		)
+		Import-Module -Name $ModulePath -Force -ErrorAction Stop
+		if ($AskCredential) {
+			$credential = $Host.UI.PromptForCredential('IndexAdvisor: обліковий запис SQL Server',
+				'Логін з правами на створення логінів, ролей і користувачів (або на перегляд прав для Verify).', '', '')
+			if ($null -eq $credential -or [string]::IsNullOrEmpty($credential.UserName)) {
+				throw 'Облікові дані не введено.'
+			}
+			$Arguments['SqlCredential'] = $credential
+		}
+		foreach ($item in @(Install-IaServiceLogin @Arguments)) {
+			Write-Host (($item | Format-List | Out-String -Width 180).Trim())
+			Write-Host ''
+		}
+		""";
 }

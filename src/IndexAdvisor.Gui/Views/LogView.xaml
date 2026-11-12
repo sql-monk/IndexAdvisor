@@ -1,0 +1,69 @@
+<UserControl x:Class="IndexAdvisor.Gui.Views.LogView"
+			 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+			 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+			 xmlns:infra="clr-namespace:IndexAdvisor.Gui.Infrastructure">
+	<!-- DataContext — LogViewModel. -->
+	<UserControl.Resources>
+		<infra:BoolToValueConverter x:Key="WrapConverter" TrueValue="{x:Static TextWrapping.Wrap}" FalseValue="{x:Static TextWrapping.NoWrap}" />
+		<infra:BoolToValueConverter x:Key="HorizontalScroll" TrueValue="{x:Static ScrollBarVisibility.Disabled}" FalseValue="{x:Static ScrollBarVisibility.Auto}" />
+	</UserControl.Resources>
+	<Grid>
+		<Grid.RowDefinitions>
+			<RowDefinition Height="Auto" />
+			<RowDefinition Height="*" />
+			<RowDefinition Height="Auto" />
+		</Grid.RowDefinitions>
+
+		<TextBlock Text="{Binding ProgressText}" Margin="2,0,0,8" Opacity="0.75" TextTrimming="CharacterEllipsis"
+				   Visibility="{Binding ProgressText, Converter={StaticResource EmptyToVisible}, ConverterParameter=Invert}" />
+
+		<Border Grid.Row="1" BorderThickness="1" CornerRadius="6"
+				BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}"
+				Background="{DynamicResource SolidBackgroundFillColorBaseBrush}">
+			<Grid>
+				<ListBox x:Name="LogList"
+						 ItemsSource="{Binding Lines}"
+						 SelectionMode="Extended"
+						 BorderThickness="0"
+						 Background="Transparent"
+						 FontFamily="{StaticResource MonoFont}"
+						 FontSize="{Binding FontSize}"
+						 AutomationProperties.Name="Журнал виконання"
+						 VirtualizingPanel.IsVirtualizing="True"
+						 VirtualizingPanel.VirtualizationMode="Recycling"
+						 ScrollViewer.HorizontalScrollBarVisibility="{Binding WordWrap, Converter={StaticResource HorizontalScroll}}">
+					<ListBox.ItemContainerStyle>
+						<Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+							<Setter Property="Padding" Value="8,1" />
+							<Setter Property="MinHeight" Value="0" />
+							<Setter Property="Margin" Value="0" />
+						</Style>
+					</ListBox.ItemContainerStyle>
+					<ListBox.ItemTemplate>
+						<DataTemplate>
+							<TextBlock Text="{Binding Mode=OneWay}"
+									   TextWrapping="{Binding DataContext.WordWrap, RelativeSource={RelativeSource AncestorType=ListBox}, Converter={StaticResource WrapConverter}}"
+									   Foreground="{Binding Converter={StaticResource HostLineBrush}}" />
+						</DataTemplate>
+					</ListBox.ItemTemplate>
+				</ListBox>
+				<TextBlock x:Name="Placeholder"
+						   Text="Тут з'явиться вивід IndexAdvisor: перебіг збору, попередження, підсумок. Запити модуля (дозапити моделі, паролі) відкриваються в окремому вікні."
+						   Margin="24" Opacity="0.55" TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Center"
+						   Visibility="{Binding Lines.Count, Converter={StaticResource EmptyToVisible}}" />
+			</Grid>
+		</Border>
+
+		<DockPanel Grid.Row="2" Margin="0,8,0,0">
+			<StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+				<CheckBox x:Name="AutoScroll" Content="Прокручувати до кінця" IsChecked="True" Margin="0,0,12,0" />
+				<Button Content="Копіювати журнал" Command="{Binding CopyCommand}" />
+				<Button Content="Очистити" Command="{Binding ClearCommand}" Margin="6,0,0,0" />
+			</StackPanel>
+			<TextBlock VerticalAlignment="Center" Opacity="0.8">
+				<Run Text="Попереджень:" /> <Run Text="{Binding WarningCount, Mode=OneWay}" Foreground="{DynamicResource StatusWarningBrush}" FontWeight="SemiBold" />
+				<Run Text="  Помилок:" /> <Run Text="{Binding ErrorCount, Mode=OneWay}" Foreground="{DynamicResource StatusErrorBrush}" FontWeight="SemiBold" />
+			</TextBlock>
+		</DockPanel>
+	</Grid>
+</UserControl>

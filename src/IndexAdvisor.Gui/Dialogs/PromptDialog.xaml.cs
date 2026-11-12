@@ -14,6 +14,9 @@ namespace IndexAdvisor.Gui.Dialogs;
 /// </summary>
 public partial class PromptDialog : Window
 {
+	/// <summary>Блимати кнопкою на панелі завдань, якщо вікно неактивне (параметри програми).</summary>
+	public static bool FlashTaskbar { get; set; } = true;
+
 	private IReadOnlyList<PromptChoice> _choices = [];
 	private int? _selectedChoice;
 	private bool _stopped;
@@ -199,7 +202,7 @@ public partial class PromptDialog : Window
 		{
 			((UIElement)ChoicePanel.Children[0]).Focus();
 		}
-		if (Owner is { IsActive: false } owner)
+		if (FlashTaskbar && Owner is { IsActive: false } owner)
 		{
 			Flash(owner);
 		}

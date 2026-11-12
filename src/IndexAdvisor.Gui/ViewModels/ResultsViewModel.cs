@@ -122,7 +122,7 @@ public sealed class ResultsViewModel : ObservableObject
 		IsLoading = true;
 		try
 		{
-			var scanned = root is null ? [] : await Task.Run(() => RunResultStore.Scan(root));
+			var scanned = root is null ? [] : await Task.Run(() => RunResultStore.Scan(root, _settings.ResultsScanDepth));
 			var scannedIds = scanned.Select(entry => entry.RunId).ToHashSet(StringComparer.OrdinalIgnoreCase);
 			var all = _sessionRuns.Where(entry => !scannedIds.Contains(entry.RunId)).Concat(scanned)
 				.OrderByDescending(entry => entry.StartedAt ?? DateTimeOffset.MinValue)

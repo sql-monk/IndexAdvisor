@@ -117,4 +117,28 @@ public sealed class IndexAdvisorService
 		};
 		return new RunOutcome(exitCode, outputRoot, results);
 	}
+
+	/// <summary>New-IaIndexMaintenance: скрипти AdaptiveIndexDefrag з архіву. Повертає теку результату.</summary>
+	public async Task<string?> NewMaintenanceAsync(IReadOnlyList<CommandParameter> parameters, string? workingDirectory, CancellationToken cancellationToken)
+	{
+		var output = await _runner.InvokeAsync(
+			HostedScripts.NewMaintenance,
+			new Dictionary<string, object?> { ["ModulePath"] = _modulePath(), ["Arguments"] = CommandLineBuilder.ToHashtable(parameters, verbose: false) },
+			workingDirectory,
+			cancellationToken);
+		return output.LastOrDefault()?.BaseObject as string;
+	}
+
+	/// <summary>Install-IaServiceLogin (Install, AddDatabase, Remove, Verify).</summary>
+	public Task InstallServiceLoginAsync(IReadOnlyList<CommandParameter> parameters, bool askCredential, CancellationToken cancellationToken)
+		=> _runner.InvokeAsync(
+			HostedScripts.ServiceLogin,
+			new Dictionary<string, object?>
+			{
+				["ModulePath"] = _modulePath(),
+				["Arguments"] = CommandLineBuilder.ToHashtable(parameters, verbose: false),
+				["AskCredential"] = askCredential,
+			},
+			null,
+			cancellationToken);
 }

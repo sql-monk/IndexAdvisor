@@ -43,7 +43,9 @@ src/IndexAdvisor/
 sql/Setup-IndexAdvisorLogin.sql, sql/Repository/IndexAdvisor.Repository.sql
 bin/IndexAdvisor.ps1            точка входу CLI з кодами повернення
 src/IndexAdvisor.Gui/           WPF (.NET 10): власний PSHost; викликає Invoke-IndexAdvisor -PassThru, Test-IaConfig, New-IaConfigTemplate,
-                                для підсумку конфігурації — Get-IaConfig і ConvertTo-IaCliOverrides в області модуля; Read-Host -> діалог
+                                New-IaIndexMaintenance -PassThru, Install-IaServiceLogin; для підсумку конфігурації — Get-IaConfig і
+                                ConvertTo-IaCliOverrides в області модуля; Read-Host -> діалог. Форма налаштувань будується з
+                                Shared/ConfigSchema.psd1 (нові ключі схеми з'являються у формі без змін GUI); YAML читає ConvertFrom-Yaml
 tests/<Тека>/*.Tests.ps1, tests/Security/, tests/Fixtures/, tests/TestHelpers.ps1, tests/Gui/ (xUnit)
 ```
 

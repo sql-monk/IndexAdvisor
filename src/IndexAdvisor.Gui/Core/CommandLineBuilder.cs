@@ -150,6 +150,17 @@ public static class CommandLineBuilder
 		return text.ToString();
 	}
 
+	/// <summary>Будь-яка команда модуля з параметрами: New-IaIndexMaintenance -FromArchive '...' -Config '...'.</summary>
+	public static string FormatCommand(string command, IEnumerable<CommandParameter> parameters)
+	{
+		var text = new StringBuilder(command);
+		foreach (var parameter in parameters)
+		{
+			text.Append(' ').Append(FormatPowerShellParameter(parameter));
+		}
+		return text.ToString();
+	}
+
 	public static string QuotePowerShell(string value) => "'" + value.Replace("'", "''") + "'";
 
 	private static string FormatPowerShellParameter(CommandParameter parameter) => parameter.Value switch

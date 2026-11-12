@@ -21,6 +21,7 @@ public sealed class RunViewModel : ObservableObject
 	private readonly AppSettings _settings;
 	private readonly Func<string> _modulePath;
 	private readonly Func<bool> _ensureConfigSaved;
+	private readonly ConfigEditorViewModel _editor;
 	private readonly Action _showResults;
 	private readonly Action _showEditor;
 	private readonly DispatcherTimer _elapsedTimer;
@@ -60,7 +61,7 @@ public sealed class RunViewModel : ObservableObject
 		ResultsViewModel results,
 		AppSettings settings,
 		Func<string> modulePath,
-		Func<bool> ensureConfigSaved,
+		ConfigEditorViewModel editor,
 		Action showResults,
 		Action showEditor)
 	{
@@ -70,7 +71,8 @@ public sealed class RunViewModel : ObservableObject
 		_results = results;
 		_settings = settings;
 		_modulePath = modulePath;
-		_ensureConfigSaved = ensureConfigSaved;
+		_editor = editor;
+		_ensureConfigSaved = editor.EnsureSaved;
 		_showResults = showResults;
 		_showEditor = showEditor;
 
@@ -149,6 +151,7 @@ public sealed class RunViewModel : ObservableObject
 		CopyPowerShellCommand = new RelayCommand(() => Clipboard.SetText(PowerShellCommand));
 		CopyPwshCommand = new RelayCommand(() => Clipboard.SetText(PwshCommand ?? string.Empty), () => PwshCommand is not null);
 		ResetOverridesCommand = new RelayCommand(ResetOverrides, () => !IsRunning);
+		SaveToConfigCommand = new AsyncRelayCommand(SaveToConfigAsync, () => !IsRunning);
 		OpenResultsCommand = new RelayCommand(_showResults, () => HasResults);
 
 		ApplySummaryHints();
@@ -335,6 +338,10 @@ public sealed class RunViewModel : ObservableObject
 	public ICommand CopyPowerShellCommand { get; }
 	public ICommand CopyPwshCommand { get; }
 	public ICommand ResetOverridesCommand { get; }
+	public ICommand SaveToConfigCommand { get; }
+
+	/// <summary>Нова конфігурація з шаблону (та сама команда, що в редакторі).</summary>
+	public ICommand NewFromTemplateCommand => _editor.NewCommand;
 	public ICommand OpenResultsCommand { get; }
 
 	/// <summary>Параметри форми як RunOptions (без перевірки).</summary>
@@ -581,6 +588,65 @@ public sealed class RunViewModel : ObservableObject
 		}
 	}
 
+	/// <summary>
+	/// Поля форми запуску → YAML: у поточну конфігурацію (або нову, якщо файлу немає), далі зберегти в той самий
+	/// чи новий файл. Перевизначення після цього очищаються: значення вже у файлі.
+	/// </summary>
+	private async Task SaveToConfigAsync()
+	{
+		var options = ToOptions();
+		if (!string.IsNullOrWhiteSpace(AnalysisWindowDaysText) && options.AnalysisWindowDays is not (>= 1 and <= 3650))
+		{
+			DialogService.Error("Вікно аналізу — ціле число днів від 1 до 3650.", "Зберегти в конфігурацію");
+			return;
+		}
+		// Редактор має містити файл, вибраний у формі запуску (або нову конфігурацію без файлу).
+		if (Config.Path is { } path && !string.Equals(path, _editor.FilePath, StringComparison.OrdinalIgnoreCase))
+		{
+			if (!_editor.ConfirmClose())
+			{
+				return;
+			}
+			_editor.Load(path);
+		}
+		var applied = await _editor.MergeRunOptionsAsync(options);
+		if (applied is null)
+		{
+			return;
+		}
+		bool saved;
+		if (_editor.FilePath is { } current)
+		{
+			var answer = DialogService.Ask(
+				(applied.Count > 0 ? "Перенесено в конфігурацію: " + string.Join(", ", applied) + "." : "Перевизначень у формі немає.")
+				+ Environment.NewLine + Environment.NewLine
+				+ $"Зберегти в поточний файл?{Environment.NewLine}{current}{Environment.NewLine}{Environment.NewLine}«Ні» — зберегти як новий файл.",
+				"Зберегти в конфігурацію",
+				MessageBoxButton.YesNoCancel,
+				MessageBoxImage.Question);
+			if (answer == MessageBoxResult.Cancel)
+			{
+				return;
+			}
+			saved = _editor.SaveTo(currentFile: answer == MessageBoxResult.Yes);
+		}
+		else
+		{
+			saved = _editor.SaveTo(currentFile: false);
+		}
+		if (!saved)
+		{
+			return;
+		}
+		// Значення вже у файлі: форма знову показує їх як «з конфігурації». Архів і -Verbose стосуються лише запуску.
+		var fromArchive = FromArchive;
+		var verbose = Verbose;
+		ResetOverrides();
+		FromArchive = fromArchive;
+		Verbose = verbose;
+		await Config.ValidateAsync();
+	}
+
 	private string? ValidateForm(RunOptions options)
 	{
 		if (!string.IsNullOrWhiteSpace(AnalysisWindowDaysText)
@@ -609,15 +675,16 @@ public sealed class RunViewModel : ObservableObject
 
 	private async Task RunAsync()
 	{
+		// Спершу — збереження конфігурації з редактора: нова конфігурація отримує файл, і він потрапляє в параметри.
+		if (!_ensureConfigSaved())
+		{
+			return;
+		}
 		var options = ToOptions();
 		var problem = ValidateForm(options);
 		if (problem is not null)
 		{
 			DialogService.Error(problem, "Запуск неможливий");
-			return;
-		}
-		if (!_ensureConfigSaved())
-		{
 			return;
 		}
 		if (options.HasUnsafeFlags)
@@ -662,6 +729,10 @@ public sealed class RunViewModel : ObservableObject
 			StatusSeverity = ExitCodes.GetSeverity(outcome.ExitCode);
 			_log.Enqueue(HostLine.System($"■ Завершено за {FormatElapsed(_stopwatch.Elapsed)}: {StatusText}."));
 			HasResults = _results.AcceptOutcome(outcome);
+			if (_settings.OpenResultsAfterRun && HasResults)
+			{
+				_showResults();
+			}
 		}
 		catch (OperationCanceledException)
 		{
@@ -677,6 +748,15 @@ public sealed class RunViewModel : ObservableObject
 		}
 		finally
 		{
+			if (_settings.SoundOnFinish)
+			{
+				(StatusSeverity switch
+				{
+					Severity.Success => System.Media.SystemSounds.Asterisk,
+					Severity.Warning => System.Media.SystemSounds.Exclamation,
+					_ => System.Media.SystemSounds.Hand,
+				}).Play();
+			}
 			_elapsedTimer.Stop();
 			_stopwatch.Stop();
 			ElapsedText = FormatElapsed(_stopwatch.Elapsed);

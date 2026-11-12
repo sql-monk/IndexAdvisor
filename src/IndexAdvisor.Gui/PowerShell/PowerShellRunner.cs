@@ -18,8 +18,11 @@ public sealed class PowerShellRunner
 		_interaction = interaction;
 	}
 
-	/// <summary>Політика виконання для процесу: модуль і dbatools — локальні або підписані файли.</summary>
-	public ExecutionPolicy ExecutionPolicy { get; init; } = ExecutionPolicy.RemoteSigned;
+	/// <summary>
+	/// Політика виконання для всіх runspace програми (параметри програми). Типово RemoteSigned:
+	/// модуль і dbatools — локальні або підписані файли.
+	/// </summary>
+	public static ExecutionPolicy ProcessExecutionPolicy { get; set; } = ExecutionPolicy.RemoteSigned;
 
 	public Task<Collection<PSObject>> InvokeAsync(
 		string script,
@@ -59,7 +62,7 @@ public sealed class PowerShellRunner
 		var state = InitialSessionState.CreateDefault();
 		if (OperatingSystem.IsWindows())
 		{
-			state.ExecutionPolicy = ExecutionPolicy;
+			state.ExecutionPolicy = ProcessExecutionPolicy;
 		}
 		using var runspace = RunspaceFactory.CreateRunspace(host, state);
 		runspace.Open();

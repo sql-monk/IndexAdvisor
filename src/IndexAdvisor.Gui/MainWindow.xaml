@@ -13,27 +13,25 @@
 				Padding="12,6"
 				BorderThickness="0,1,0,0"
 				BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
-			<DockPanel>
-				<StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-					<Button Content="Інший модуль…" Command="{Binding BrowseModuleCommand}" Padding="10,3"
-							ToolTip="Вказати шлях до IndexAdvisor.psd1" />
-					<Button Content="Автопошук" Command="{Binding ResetModuleCommand}" Margin="6,0,0,0" Padding="10,3"
-							ToolTip="Повернути автоматичний пошук модуля" />
-				</StackPanel>
-				<TextBlock Text="{Binding ModuleText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Opacity="0.7"
-						   ToolTip="{Binding ModulePath}" />
-			</DockPanel>
+			<TextBlock Text="{Binding ModuleText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Opacity="0.7"
+					   ToolTip="{Binding ModulePath}" />
 		</Border>
 
 		<TabControl SelectedIndex="{Binding SelectedTab}" Margin="10,6,10,0">
 			<TabItem Header="Запуск">
 				<views:RunView />
 			</TabItem>
-			<TabItem Header="Конфігурація YAML">
+			<TabItem Header="Конфігурація">
 				<views:ConfigView DataContext="{Binding Editor}" />
 			</TabItem>
 			<TabItem Header="Результати">
 				<views:ResultsView DataContext="{Binding Results}" />
+			</TabItem>
+			<TabItem Header="Інструменти">
+				<views:ToolsView DataContext="{Binding Tools}" />
+			</TabItem>
+			<TabItem Header="Параметри">
+				<views:PreferencesView DataContext="{Binding Preferences}" />
 			</TabItem>
 		</TabControl>
 	</DockPanel>

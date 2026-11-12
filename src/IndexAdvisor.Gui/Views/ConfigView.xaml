@@ -1,26 +1,173 @@
 <UserControl x:Class="IndexAdvisor.Gui.Views.ConfigView"
 			 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
 			 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-			 xmlns:avalonEdit="http://icsharpcode.net/sharpdevelop/avalonedit">
+			 xmlns:avalonEdit="http://icsharpcode.net/sharpdevelop/avalonedit"
+			 xmlns:infra="clr-namespace:IndexAdvisor.Gui.Infrastructure"
+			 xmlns:cf="clr-namespace:IndexAdvisor.Gui.ViewModels.ConfigForm">
 	<UserControl.InputBindings>
 		<KeyBinding Key="S" Modifiers="Control" Command="{Binding SaveCommand}" />
 		<KeyBinding Key="F5" Command="{Binding ValidateCommand}" />
 	</UserControl.InputBindings>
+
+	<UserControl.Resources>
+		<!-- Рамка поля: смуга зліва, якщо ключ задано у файлі. -->
+		<Style x:Key="FieldBorder" TargetType="Border">
+			<Setter Property="BorderThickness" Value="3,0,0,0" />
+			<Setter Property="BorderBrush" Value="Transparent" />
+			<Setter Property="Padding" Value="12,2,0,8" />
+			<Setter Property="Margin" Value="0,6,0,0" />
+			<Style.Triggers>
+				<DataTrigger Binding="{Binding IsSet}" Value="True">
+					<Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+				</DataTrigger>
+			</Style.Triggers>
+		</Style>
+
+		<DataTemplate x:Key="FieldHeader">
+			<DockPanel Margin="0,6,0,6">
+				<Button DockPanel.Dock="Right" Content="Скинути" Command="{Binding ResetCommand}" Padding="10,2" FontSize="12" VerticalAlignment="Top"
+						ToolTip="Прибрати ключ з файлу: діятиме значення за замовчуванням"
+						Visibility="{Binding IsSet, Converter={StaticResource BoolToVisibility}}" />
+				<StackPanel Margin="0,0,12,0">
+					<TextBlock Text="{Binding Label}" FontWeight="SemiBold" TextWrapping="Wrap" />
+					<TextBlock FontFamily="{StaticResource MonoFont}" FontSize="11.5" Opacity="0.62" TextWrapping="Wrap" Margin="0,2,0,0">
+						<Run Text="{Binding Path, Mode=OneWay}" /><Run Text="  ·  " /><Run Text="{Binding DefaultText, Mode=OneWay}" />
+					</TextBlock>
+				</StackPanel>
+			</DockPanel>
+		</DataTemplate>
+
+		<DataTemplate x:Key="FieldFooter">
+			<StackPanel>
+				<TextBlock Text="{Binding Hint}" Style="{StaticResource HintText}"
+						   Visibility="{Binding Hint, Converter={StaticResource EmptyToVisible}, ConverterParameter=Invert}" />
+				<TextBlock Text="{Binding Error}" Foreground="{DynamicResource StatusErrorBrush}" TextWrapping="Wrap" Margin="0,4,0,0"
+						   Visibility="{Binding Error, Converter={StaticResource EmptyToVisible}, ConverterParameter=Invert}" />
+			</StackPanel>
+		</DataTemplate>
+
+		<DataTemplate DataType="{x:Type cf:BoolSettingVm}">
+			<Border Style="{StaticResource FieldBorder}">
+				<StackPanel>
+					<ContentControl Content="{Binding}" ContentTemplate="{StaticResource FieldHeader}" Focusable="False" />
+					<CheckBox IsChecked="{Binding Value}" Content="увімкнено" AutomationProperties.Name="{Binding Path}" />
+					<ContentControl Content="{Binding}" ContentTemplate="{StaticResource FieldFooter}" Focusable="False" />
+				</StackPanel>
+			</Border>
+		</DataTemplate>
+
+		<DataTemplate DataType="{x:Type cf:TextSettingVm}">
+			<Border Style="{StaticResource FieldBorder}">
+				<StackPanel>
+					<ContentControl Content="{Binding}" ContentTemplate="{StaticResource FieldHeader}" Focusable="False" />
+					<TextBox Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}" Width="560" HorizontalAlignment="Left"
+							 AutomationProperties.Name="{Binding Path}" />
+					<ContentControl Content="{Binding}" ContentTemplate="{StaticResource FieldFooter}" Focusable="False" />
+				</StackPanel>
+			</Border>
+		</DataTemplate>
+
+		<DataTemplate DataType="{x:Type cf:StringListSettingVm}">
+			<Border Style="{StaticResource FieldBorder}">
+				<StackPanel>
+					<ContentControl Content="{Binding}" ContentTemplate="{StaticResource FieldHeader}" Focusable="False" />
+					<TextBox Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}" Width="560" HorizontalAlignment="Left"
+							 AutomationProperties.Name="{Binding Path}" />
+					<ContentControl Content="{Binding}" ContentTemplate="{StaticResource FieldFooter}" Focusable="False" />
+				</StackPanel>
+			</Border>
+		</DataTemplate>
+
+		<DataTemplate DataType="{x:Type cf:EnumSettingVm}">
+			<Border Style="{StaticResource FieldBorder}">
+				<StackPanel>
+					<ContentControl Content="{Binding}" ContentTemplate="{StaticResource FieldHeader}" Focusable="False" />
+					<ComboBox ItemsSource="{Binding Options}" SelectedItem="{Binding Selected}" Width="300" HorizontalAlignment="Left"
+							  AutomationProperties.Name="{Binding Path}" />
+					<ContentControl Content="{Binding}" ContentTemplate="{StaticResource FieldFooter}" Focusable="False" />
+				</StackPanel>
+			</Border>
+		</DataTemplate>
+
+		<DataTemplate DataType="{x:Type cf:EnumListSettingVm}">
+			<Border Style="{StaticResource FieldBorder}">
+				<StackPanel>
+					<ContentControl Content="{Binding}" ContentTemplate="{StaticResource FieldHeader}" Focusable="False" />
+					<ItemsControl ItemsSource="{Binding Items}">
+						<ItemsControl.ItemsPanel>
+							<ItemsPanelTemplate>
+								<WrapPanel />
+							</ItemsPanelTemplate>
+						</ItemsControl.ItemsPanel>
+						<ItemsControl.ItemTemplate>
+							<DataTemplate>
+								<CheckBox Content="{Binding Name}" IsChecked="{Binding IsChecked}" Margin="0,2,16,2" />
+							</DataTemplate>
+						</ItemsControl.ItemTemplate>
+					</ItemsControl>
+					<ContentControl Content="{Binding}" ContentTemplate="{StaticResource FieldFooter}" Focusable="False" />
+				</StackPanel>
+			</Border>
+		</DataTemplate>
+
+		<DataTemplate DataType="{x:Type cf:GroupSettingVm}">
+			<StackPanel Margin="0,18,0,0">
+				<TextBlock Text="{Binding Label}" FontSize="14.5" FontWeight="SemiBold" TextWrapping="Wrap" />
+				<TextBlock Text="{Binding Path}" FontFamily="{StaticResource MonoFont}" FontSize="11.5" Opacity="0.62" />
+				<ItemsControl ItemsSource="{Binding Children}" Margin="14,0,0,0" Focusable="False" />
+			</StackPanel>
+		</DataTemplate>
+
+		<DataTemplate DataType="{x:Type cf:CollectionItemVm}">
+			<Border Style="{StaticResource Card}" Margin="0,8,0,0">
+				<StackPanel>
+					<DockPanel>
+						<Button DockPanel.Dock="Right" Content="Видалити" Command="{Binding RemoveCommand}" Padding="10,2" VerticalAlignment="Top" />
+						<StackPanel Orientation="Horizontal" Visibility="{Binding HasKey, Converter={StaticResource BoolToVisibility}}">
+							<TextBlock Text="Ім'я" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,10,0" />
+							<TextBox Text="{Binding Key, UpdateSourceTrigger=PropertyChanged}" Width="240" AutomationProperties.Name="Ім'я" />
+						</StackPanel>
+					</DockPanel>
+					<ItemsControl ItemsSource="{Binding Children}" Focusable="False" />
+				</StackPanel>
+			</Border>
+		</DataTemplate>
+
+		<DataTemplate x:Key="CollectionTemplate">
+			<StackPanel Margin="0,18,0,0">
+				<TextBlock Text="{Binding Label}" FontSize="14.5" FontWeight="SemiBold" TextWrapping="Wrap" />
+				<TextBlock Text="{Binding Path}" FontFamily="{StaticResource MonoFont}" FontSize="11.5" Opacity="0.62" />
+				<ItemsControl ItemsSource="{Binding Items}" Focusable="False" />
+				<Button Content="{Binding AddText}" Command="{Binding AddCommand}" HorizontalAlignment="Left" Margin="0,10,0,0" />
+			</StackPanel>
+		</DataTemplate>
+
+		<DataTemplate DataType="{x:Type cf:ListSettingVm}">
+			<ContentControl Content="{Binding}" ContentTemplate="{StaticResource CollectionTemplate}" Focusable="False" />
+		</DataTemplate>
+
+		<DataTemplate DataType="{x:Type cf:MapSettingVm}">
+			<ContentControl Content="{Binding}" ContentTemplate="{StaticResource CollectionTemplate}" Focusable="False" />
+		</DataTemplate>
+	</UserControl.Resources>
+
 	<Grid Margin="0,8,0,8">
 		<Grid.RowDefinitions>
 			<RowDefinition Height="Auto" />
 			<RowDefinition Height="Auto" />
 			<RowDefinition Height="*" />
 			<RowDefinition Height="Auto" />
-			<RowDefinition Height="160" MinHeight="60" />
+			<RowDefinition Height="150" MinHeight="60" />
 		</Grid.RowDefinitions>
 
 		<WrapPanel Margin="0,4,0,0">
 			<Button Content="Відкрити…" Command="{Binding OpenCommand}" Margin="0,0,6,0" />
-			<Button Content="Новий з шаблону…" Command="{Binding NewCommand}" Margin="0,0,6,0"
-					ToolTip="New-IaConfigTemplate: усі параметри зі значеннями за замовчуванням і коментарями" />
+			<Button Content="Нова з шаблону…" Command="{Binding NewCommand}" Margin="0,0,6,0"
+					ToolTip="Стандартний шаблон модуля або збережений шаблон: вказати лише сервери та бази" />
 			<Button Content="Зберегти" Command="{Binding SaveCommand}" Margin="0,0,6,0" ToolTip="Ctrl+S" />
 			<Button Content="Зберегти як…" Command="{Binding SaveAsCommand}" Margin="0,0,6,0" />
+			<Button Content="Зберегти як шаблон…" Command="{Binding SaveAsTemplateCommand}" Margin="0,0,6,0"
+					ToolTip="Зберегти налаштування в теку шаблонів (за бажанням без серверів і баз)" />
 			<Button Content="Перечитати" Command="{Binding ReloadCommand}" Margin="0,0,18,0" />
 			<Button Content="Перевірити" Command="{Binding ValidateCommand}" Style="{DynamicResource AccentButtonStyle}"
 					ToolTip="Зберегти й перевірити (Test-IaConfig), F5" />
@@ -35,30 +182,95 @@
 			<TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
 		</DockPanel>
 
-		<Border Grid.Row="2" BorderThickness="1" CornerRadius="6" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
-			<Grid>
-				<avalonEdit:TextEditor x:Name="Editor"
-									   Document="{Binding Document}"
-									   ShowLineNumbers="True"
-									   FontFamily="{StaticResource MonoFont}"
-									   FontSize="13"
-									   Padding="4"
-									   HorizontalScrollBarVisibility="Auto"
-									   VerticalScrollBarVisibility="Auto"
-									   Background="White" />
-				<StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
-							Visibility="{Binding FilePath, Converter={StaticResource EmptyToVisible}}">
-					<TextBlock Text="Відкрийте файл конфігурації або створіть новий із шаблону." Opacity="0.6" HorizontalAlignment="Center" />
-					<TextBlock Text="Секрети в YAML не зберігаються — лише посилання secret:Сховище/Секрет або env:ЗМІННА."
-							   Opacity="0.5" Margin="0,6,0,0" HorizontalAlignment="Center" />
-				</StackPanel>
-			</Grid>
-		</Border>
+		<TabControl Grid.Row="2" SelectedIndex="{Binding SelectedView}">
+			<TabItem Header="Налаштування">
+				<Grid Margin="0,8,0,0" DataContext="{Binding Form}">
+					<Grid.RowDefinitions>
+						<RowDefinition Height="Auto" />
+						<RowDefinition Height="*" />
+					</Grid.RowDefinitions>
+
+					<StackPanel>
+						<Border Style="{StaticResource Card}" Margin="0,0,0,8"
+								Visibility="{Binding SchemaError, Converter={StaticResource EmptyToVisible}, ConverterParameter=Invert}">
+							<TextBlock Text="{Binding SchemaError}" Foreground="{DynamicResource StatusErrorBrush}" TextWrapping="Wrap" />
+						</Border>
+						<Border Style="{StaticResource Card}" Margin="0,0,0,8"
+								Visibility="{Binding StatusText, Converter={StaticResource EmptyToVisible}, ConverterParameter=Invert}">
+							<TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource StatusWarningBrush}" TextWrapping="Wrap" />
+						</Border>
+						<DockPanel Margin="0,0,0,8">
+							<StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+								<Button Content="Застосувати до YAML" Command="{Binding DataContext.ApplyFormCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+										ToolTip="Записати форму в текст YAML (зберегти файл — «Зберегти»)" />
+								<Button Content="Скасувати зміни форми" Margin="6,0,0,0"
+										Command="{Binding DataContext.RevertFormCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+							</StackPanel>
+							<ProgressBar DockPanel.Dock="Right" IsIndeterminate="True" Width="80" Height="3" Margin="0,0,12,0"
+										 Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" />
+							<TextBlock Style="{StaticResource HintText}" VerticalAlignment="Center" Margin="0,0,12,0"
+									   Text="Смуга зліва — ключ задано у файлі; без неї діє значення за замовчуванням. Форма записує YAML без коментарів; щоб зберегти коментарі, редагуйте текст." />
+						</DockPanel>
+					</StackPanel>
+
+					<Grid Grid.Row="1">
+						<Grid.ColumnDefinitions>
+							<ColumnDefinition Width="260" MinWidth="200" />
+							<ColumnDefinition Width="Auto" />
+							<ColumnDefinition Width="*" />
+						</Grid.ColumnDefinitions>
+
+						<DockPanel>
+							<Grid DockPanel.Dock="Top" Margin="0,0,0,8">
+								<TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Пошук налаштування" />
+								<TextBlock Style="{StaticResource Watermark}" Text="Пошук: ключ або опис…"
+										   Visibility="{Binding SearchText, Converter={StaticResource EmptyToVisible}}" />
+							</Grid>
+							<ListBox ItemsSource="{Binding Sections}" SelectedItem="{Binding SelectedSection}" DisplayMemberPath="Title"
+									 AutomationProperties.Name="Розділи налаштувань" />
+						</DockPanel>
+
+						<GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Center" VerticalAlignment="Stretch" Background="Transparent" />
+
+						<ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="8,0,16,16"
+									  IsEnabled="{Binding DataContext.FormEditable, RelativeSource={RelativeSource AncestorType=UserControl}}">
+							<Grid>
+								<StackPanel Visibility="{Binding IsSearching, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}">
+									<TextBlock Text="{Binding SelectedSection.Title}" FontSize="20" FontWeight="SemiBold" />
+									<TextBlock Text="{Binding SelectedSection.Description}" Opacity="0.75" TextWrapping="Wrap" Margin="0,4,0,4" />
+									<ItemsControl ItemsSource="{Binding SelectedSection.Items}" Focusable="False" />
+								</StackPanel>
+								<StackPanel Visibility="{Binding IsSearching, Converter={StaticResource BoolToVisibility}}">
+									<TextBlock FontSize="20" FontWeight="SemiBold">
+										<Run Text="Знайдено:" /> <Run Text="{Binding SearchResults.Count, Mode=OneWay}" />
+									</TextBlock>
+									<ItemsControl ItemsSource="{Binding SearchResults}" Focusable="False" />
+								</StackPanel>
+							</Grid>
+						</ScrollViewer>
+					</Grid>
+				</Grid>
+			</TabItem>
+
+			<TabItem Header="YAML">
+				<Border Margin="0,8,0,0" BorderThickness="1" CornerRadius="6" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+					<avalonEdit:TextEditor x:Name="Editor"
+										   Document="{Binding Document}"
+										   infra:EditorTheming.Highlighting="YAML"
+										   ShowLineNumbers="True"
+										   FontFamily="{StaticResource MonoFont}"
+										   Padding="4"
+										   HorizontalScrollBarVisibility="Auto"
+										   VerticalScrollBarVisibility="Auto"
+										   AutomationProperties.Name="Текст YAML" />
+				</Border>
+			</TabItem>
+		</TabControl>
 
 		<GridSplitter Grid.Row="3" Height="6" HorizontalAlignment="Stretch" Background="Transparent" />
 
 		<DockPanel Grid.Row="4">
-			<TextBlock DockPanel.Dock="Top" Text="Помилки перевірки (подвійне клацання — перейти до рядка)" FontWeight="SemiBold" Margin="2,0,0,6" />
+			<TextBlock DockPanel.Dock="Top" Text="Помилки перевірки Test-IaConfig (подвійне клацання — перейти до рядка YAML)" FontWeight="SemiBold" Margin="2,0,0,6" />
 			<ListView x:Name="ErrorList" ItemsSource="{Binding State.Errors}" MouseDoubleClick="OnErrorDoubleClick">
 				<ListView.View>
 					<GridView>

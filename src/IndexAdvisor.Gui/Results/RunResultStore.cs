@@ -72,10 +72,10 @@ public static class RunResultStore
 	};
 
 	/// <summary>
-	/// Шукає result.json у підтеках (до трьох рівнів: out\запуск, live-out\прогін\out\запуск).
+	/// Шукає result.json у підтеках (типово до трьох рівнів: out\запуск, прогін\out\запуск).
 	/// Пошкоджені файли пропускаються. Новіші — першими.
 	/// </summary>
-	public static IReadOnlyList<RunListEntry> Scan(string root, int limit = 500)
+	public static IReadOnlyList<RunListEntry> Scan(string root, int maxDepth = 3, int limit = 500)
 	{
 		if (string.IsNullOrWhiteSpace(root) || !System.IO.Directory.Exists(root))
 		{
@@ -84,7 +84,7 @@ public static class RunResultStore
 		var options = new EnumerationOptions
 		{
 			RecurseSubdirectories = true,
-			MaxRecursionDepth = 3,
+			MaxRecursionDepth = Math.Clamp(maxDepth, 0, 8),
 			IgnoreInaccessible = true,
 			MatchCasing = MatchCasing.CaseInsensitive,
 		};

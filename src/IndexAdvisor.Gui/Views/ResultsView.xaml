@@ -2,18 +2,17 @@
 			 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
 			 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 			 xmlns:vm="clr-namespace:IndexAdvisor.Gui.ViewModels"
-			 xmlns:avalonEdit="http://icsharpcode.net/sharpdevelop/avalonedit">
+			 xmlns:avalonEdit="http://icsharpcode.net/sharpdevelop/avalonedit"
+			 xmlns:infra="clr-namespace:IndexAdvisor.Gui.Infrastructure">
 	<UserControl.Resources>
 
 		<Style x:Key="ScriptEditor" TargetType="avalonEdit:TextEditor">
 			<Setter Property="IsReadOnly" Value="True" />
 			<Setter Property="ShowLineNumbers" Value="True" />
 			<Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
-			<Setter Property="FontSize" Value="12.5" />
-			<Setter Property="SyntaxHighlighting" Value="TSQL" />
+			<Setter Property="infra:EditorTheming.Highlighting" Value="TSQL" />
 			<Setter Property="HorizontalScrollBarVisibility" Value="Auto" />
 			<Setter Property="VerticalScrollBarVisibility" Value="Auto" />
-			<Setter Property="Background" Value="White" />
 			<Setter Property="Padding" Value="4" />
 		</Style>
 
@@ -59,7 +58,7 @@
 								<TextBlock Text="{Binding Server}" FontSize="20" FontWeight="SemiBold" />
 								<Border Style="{StaticResource Badge}" Margin="12,2,0,0"
 										Background="{Binding Status, Converter={StaticResource StatusBrush}}">
-									<TextBlock Text="{Binding StatusText}" Foreground="White" FontSize="12" />
+									<TextBlock Text="{Binding StatusText}" Foreground="{DynamicResource BadgeForegroundBrush}" FontSize="12" />
 								</Border>
 							</StackPanel>
 							<TextBlock Margin="0,4,0,0" Opacity="0.75" TextWrapping="Wrap">
@@ -83,7 +82,7 @@
 										<Style TargetType="TextBlock">
 											<Style.Triggers>
 												<DataTrigger Binding="{Binding PeriodInsufficient}" Value="True">
-													<Setter Property="Foreground" Value="{StaticResource StatusWarningBrush}" />
+													<Setter Property="Foreground" Value="{DynamicResource StatusWarningBrush}" />
 													<Setter Property="FontWeight" Value="SemiBold" />
 												</DataTrigger>
 											</Style.Triggers>
@@ -99,7 +98,7 @@
 								<TextBlock Grid.Row="4" Text="Набори даних" Opacity="0.7" Margin="0,1,16,1" />
 								<TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding DatasetsText}" TextWrapping="Wrap" Margin="0,1" />
 							</Grid>
-							<TextBlock Text="{Binding UnsafeText}" Foreground="{StaticResource StatusErrorBrush}" FontWeight="SemiBold" Margin="0,6,0,0"
+							<TextBlock Text="{Binding UnsafeText}" Foreground="{DynamicResource StatusErrorBrush}" FontWeight="SemiBold" Margin="0,6,0,0"
 									   Visibility="{Binding UnsafeText, Converter={StaticResource EmptyToVisible}, ConverterParameter=Invert}" />
 						</StackPanel>
 						<StackPanel Grid.Column="1" Margin="16,0,0,0" MinWidth="170">
@@ -213,7 +212,7 @@
 													<Style TargetType="TextBlock">
 														<Style.Triggers>
 															<DataTrigger Binding="{Binding PeriodInsufficient}" Value="True">
-																<Setter Property="Foreground" Value="{StaticResource StatusWarningBrush}" />
+																<Setter Property="Foreground" Value="{DynamicResource StatusWarningBrush}" />
 															</DataTrigger>
 														</Style.Triggers>
 													</Style>
@@ -247,7 +246,7 @@
 										</StackPanel>
 
 										<StackPanel Visibility="{Binding HasWarnings, Converter={StaticResource BoolToVisibility}}">
-											<TextBlock Style="{StaticResource DetailLabel}" Text="Попередження" Foreground="{StaticResource StatusWarningBrush}" />
+											<TextBlock Style="{StaticResource DetailLabel}" Text="Попередження" Foreground="{DynamicResource StatusWarningBrush}" />
 											<ItemsControl ItemsSource="{Binding Warnings}">
 												<ItemsControl.ItemTemplate>
 													<DataTemplate>
@@ -305,7 +304,7 @@
 										</TabItem>
 										<TabItem Header="Партиціонування" Visibility="{Binding HasPartitioning, Converter={StaticResource BoolToVisibility}}">
 											<Border BorderThickness="1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" Margin="0,6,0,0">
-												<avalonEdit:TextEditor Style="{StaticResource ScriptEditor}" SyntaxHighlighting="JavaScript" WordWrap="True"
+												<avalonEdit:TextEditor Style="{StaticResource ScriptEditor}" infra:EditorTheming.Highlighting="JavaScript" WordWrap="True"
 																	   Document="{Binding PartitioningDocument}" />
 											</Border>
 										</TabItem>

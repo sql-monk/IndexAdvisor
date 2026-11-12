@@ -5,12 +5,14 @@ using IndexAdvisor.Gui.PowerShell;
 
 namespace IndexAdvisor.Gui.ViewModels;
 
-/// <summary>Корінь: вкладки «Запуск», «Конфігурація», «Результати» і спільний журнал PowerShell.</summary>
+/// <summary>Корінь: вкладки «Запуск», «Конфігурація», «Результати», «Інструменти», «Параметри» і спільний журнал PowerShell.</summary>
 public sealed class MainViewModel : ObservableObject
 {
 	public const int RunTab = 0;
 	public const int ConfigTab = 1;
 	public const int ResultsTab = 2;
+	public const int ToolsTab = 3;
+	public const int PreferencesTab = 4;
 
 	private readonly AppSettings _settings;
 	private int _selectedTab;
@@ -21,12 +23,13 @@ public sealed class MainViewModel : ObservableObject
 		_settings = settings;
 		_modulePath = ModuleLocator.Resolve(settings.ModulePath);
 		Log = new LogViewModel();
+		PreferencesViewModel.ApplyAll(settings, Log);
 		var interaction = new InteractionService(Log);
 		var service = new IndexAdvisorService(new PowerShellRunner(interaction), () => _modulePath);
 
 		Config = new ConfigStateViewModel(service, Log);
 		Results = new ResultsViewModel(settings);
-		Editor = new ConfigEditorViewModel(service, Config, settings);
+		Editor = new ConfigEditorViewModel(service, new YamlService(), Config, settings, () => _modulePath);
 		Run = new RunViewModel(
 			service,
 			Log,
@@ -34,13 +37,16 @@ public sealed class MainViewModel : ObservableObject
 			Results,
 			settings,
 			() => _modulePath,
-			Editor.EnsureSaved,
+			Editor,
 			() => SelectedTab = ResultsTab,
 			() => SelectedTab = ConfigTab);
 
+		Tools = new ToolsViewModel(service, Log, Config);
+		Preferences = new PreferencesViewModel(settings, Log, this);
+
 		Config.PathChanged += (_, _) =>
 		{
-			if (Config.Exists && !Run.IsRunning)
+			if (Config.Exists && !Run.IsRunning && _settings.AutoValidateConfig)
 			{
 				_ = Config.ValidateAsync();
 			}
@@ -59,6 +65,10 @@ public sealed class MainViewModel : ObservableObject
 	public ConfigEditorViewModel Editor { get; }
 
 	public ResultsViewModel Results { get; }
+
+	public ToolsViewModel Tools { get; }
+
+	public PreferencesViewModel Preferences { get; }
 
 	public int SelectedTab
 	{
@@ -130,8 +140,9 @@ public sealed class MainViewModel : ObservableObject
 		}
 		if (!File.Exists(_modulePath))
 		{
-			Log.Enqueue(HostLine.System($"Маніфест IndexAdvisor.psd1 не знайдено поруч із програмою: модуль імпортуватиметься з PSModulePath. Шлях можна вказати внизу вікна."));
+			Log.Enqueue(HostLine.System("Маніфест IndexAdvisor.psd1 не знайдено поруч із програмою: модуль імпортуватиметься з PSModulePath. Шлях можна вказати на вкладці «Параметри»."));
 		}
+		await Editor.InitializeAsync();
 		if (Results.Root is not null)
 		{
 			await Results.RefreshAsync();
@@ -175,5 +186,6 @@ public sealed class MainViewModel : ObservableObject
 		_settings.ModulePath = path;
 		_settings.Save();
 		ModulePath = ModuleLocator.Resolve(path);
+		_ = Editor.SyncFormAsync(force: true);
 	}
 }
