@@ -24,6 +24,37 @@ public sealed class PowerShellRunner
 	/// </summary>
 	public static ExecutionPolicy ProcessExecutionPolicy { get; set; } = ExecutionPolicy.RemoteSigned;
 
+	/// <summary>
+	/// Тека залежностей модуля (%LOCALAPPDATA%\IndexAdvisor\Modules) — перша в PSModulePath кожного runspace:
+	/// Import-Module бере першу теку, у якій є модуль, тож встановлене сюди перемагає копії в профілі PowerShell.
+	/// </summary>
+	public static string DependencyModulesPath { get; set; } = InstallLayout.ModulesRoot;
+
+	/// <summary>
+	/// PSModulePath процесу з <paramref name="directory"/> першим. PowerShell під час відкриття runspace додає
+	/// Документи\PowerShell\Modules, Program Files\PowerShell\Modules і $PSHOME\Modules на початок, якщо їх немає,
+	/// але порядок наявних тек не змінює — тому тека лишається першою й у наступних runspace.
+	/// </summary>
+	internal static void PutModulePathFirst(string directory)
+	{
+		var current = Environment.GetEnvironmentVariable("PSModulePath");
+		var value = WithFirst(current, directory);
+		if (!string.Equals(value, current, StringComparison.Ordinal))
+		{
+			Environment.SetEnvironmentVariable("PSModulePath", value);
+		}
+	}
+
+	/// <summary>Список тек PSModulePath з <paramref name="directory"/> першим і без його повторів.</summary>
+	internal static string WithFirst(string? modulePath, string directory)
+	{
+		var normalized = directory.TrimEnd(Path.DirectorySeparatorChar);
+		var rest = (modulePath ?? string.Empty)
+			.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+			.Where(item => !string.Equals(item.TrimEnd(Path.DirectorySeparatorChar), normalized, StringComparison.OrdinalIgnoreCase));
+		return string.Join(Path.PathSeparator, rest.Prepend(normalized));
+	}
+
 	public Task<Collection<PSObject>> InvokeAsync(
 		string script,
 		IReadOnlyDictionary<string, object?> parameters,
@@ -66,6 +97,8 @@ public sealed class PowerShellRunner
 		}
 		using var runspace = RunspaceFactory.CreateRunspace(host, state);
 		runspace.Open();
+		// Після Open: PowerShell щойно звірив PSModulePath зі своїми типовими теками.
+		PutModulePathFirst(DependencyModulesPath);
 		using var ps = System.Management.Automation.PowerShell.Create(runspace);
 		shell = ps;
 		if (!string.IsNullOrWhiteSpace(workingDirectory) && Directory.Exists(workingDirectory))

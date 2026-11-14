@@ -25,11 +25,26 @@
 			<TextBlock Style="{StaticResource HintText}" Text="Від 1000 до 500000; старіші рядки відкидаються." />
 
 			<TextBlock Style="{StaticResource SectionHeader}"><Run Text="Модуль IndexAdvisor і PowerShell" /><InlineUIContainer BaselineAlignment="Center"><infra:HelpButton Topic="Preferences:ModulePath" Title="Модуль IndexAdvisor" /></InlineUIContainer></TextBlock>
-			<TextBlock Text="{Binding Main.ModuleText}" TextWrapping="Wrap" Margin="0,6,0,0" />
+			<TextBlock Text="{Binding Main.ModuleSummary}" TextWrapping="Wrap" Margin="0,6,0,0" FontWeight="SemiBold"
+					   Visibility="{Binding Main.ModuleMissing, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}" />
+			<TextBlock Text="{Binding Main.ModuleSummary}" TextWrapping="Wrap" Margin="0,6,0,0" FontWeight="SemiBold" Foreground="{DynamicResource StatusErrorBrush}"
+					   Visibility="{Binding Main.ModuleMissing, Converter={StaticResource BoolToVisibility}}" />
+			<TextBlock Text="{Binding Main.ModulePath}" FontFamily="{StaticResource MonoFont}" TextWrapping="Wrap" Margin="0,4,0,0" />
+			<TextBlock Style="{StaticResource HintText}" TextWrapping="Wrap"
+					   Text="Порядок: вибраний тут IndexAdvisor.psd1 (якщо його немає — помилка, інший модуль не підставляється) → у збірці для розробки src\IndexAdvisor репозиторію → Modules\IndexAdvisor у теці програми." />
 			<StackPanel Orientation="Horizontal" Margin="0,8,0,0">
 				<Button Content="Вибрати IndexAdvisor.psd1…" Command="{Binding Main.BrowseModuleCommand}" />
-				<Button Content="Автопошук" Command="{Binding Main.ResetModuleCommand}" Margin="8,0,0,0"
-						ToolTip="src\IndexAdvisor у репозиторії над програмою → Modules\IndexAdvisor поруч з exe → PSModulePath" />
+				<Button Content="Вбудований модуль" Command="{Binding Main.ResetModuleCommand}" Margin="8,0,0,0"
+						ToolTip="Забути вибраний шлях: модуль з теки програми (у збірці для розробки — src\IndexAdvisor репозиторію)" />
+				<Button Content="Відкрити теку модуля" Command="{Binding Main.OpenModuleFolderCommand}" Margin="8,0,0,0" />
+			</StackPanel>
+			<TextBlock TextWrapping="Wrap" Margin="0,12,0,0">
+				<Run Text="{Binding Main.AppText, Mode=OneWay}" />
+				<LineBreak />
+				<Run Text="{Binding Main.PowerShellText, Mode=OneWay}" />
+			</TextBlock>
+			<StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+				<Button Content="Відкрити теку програми" Command="{Binding Main.OpenAppFolderCommand}" />
 			</StackPanel>
 
 			<TextBlock Style="{StaticResource FieldLabel}"><Run Text="Політика виконання вбудованого PowerShell (для процесу)" /><InlineUIContainer BaselineAlignment="Center"><infra:HelpButton Topic="Preferences:ExecutionPolicyName" Title="Політика виконання вбудованого PowerShell (для процесу)" /></InlineUIContainer></TextBlock>
@@ -38,6 +53,54 @@
 			<TextBlock Text="{Binding PolicyWarning}" Foreground="{DynamicResource StatusWarningBrush}" TextWrapping="Wrap" Margin="0,6,0,0"
 					   Visibility="{Binding PolicyWarning, Converter={StaticResource EmptyToVisible}, ConverterParameter=Invert}" />
 			<TextBlock Style="{StaticResource HintText}" Text="Діє з наступної операції. Групова політика Windows має пріоритет." />
+
+			<TextBlock Style="{StaticResource SectionHeader}"><Run Text="Залежності модуля" /><InlineUIContainer BaselineAlignment="Center"><infra:HelpButton Topic="Preferences:Dependencies" Title="Залежності модуля" /></InlineUIContainer></TextBlock>
+			<TextBlock TextWrapping="Wrap" Margin="0,6,0,0">
+				<Run Text="Тека залежностей IndexAdvisor:" /> <Run Text="{Binding Main.Dependencies.ModulesRoot, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" />
+			</TextBlock>
+			<TextBlock Text="{Binding Main.Dependencies.Summary}" TextWrapping="Wrap" Margin="0,6,0,0" FontWeight="SemiBold"
+					   Visibility="{Binding Main.Dependencies.HasProblems, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}" />
+			<TextBlock Text="{Binding Main.Dependencies.Summary}" TextWrapping="Wrap" Margin="0,6,0,0" FontWeight="SemiBold" Foreground="{DynamicResource StatusWarningBrush}"
+					   Visibility="{Binding Main.Dependencies.HasProblems, Converter={StaticResource BoolToVisibility}}" />
+			<ItemsControl ItemsSource="{Binding Main.Dependencies.Items}" Margin="0,6,0,0" Focusable="False">
+				<ItemsControl.ItemTemplate>
+					<DataTemplate>
+						<Grid Margin="0,3,0,3">
+							<Grid.ColumnDefinitions>
+								<ColumnDefinition Width="290" />
+								<ColumnDefinition Width="100" />
+								<ColumnDefinition Width="*" />
+							</Grid.ColumnDefinitions>
+							<TextBlock Text="{Binding Name}" ToolTip="{Binding Purpose}" TextTrimming="CharacterEllipsis" />
+							<TextBlock Grid.Column="1" Text="{Binding Version}" FontFamily="{StaticResource MonoFont}" />
+							<TextBlock Grid.Column="2" Text="{Binding Location}" FontFamily="{StaticResource MonoFont}" TextWrapping="Wrap"
+									   Visibility="{Binding IsProblem, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}" />
+							<TextBlock Grid.Column="2" Text="{Binding Location}" FontFamily="{StaticResource MonoFont}" TextWrapping="Wrap"
+									   Foreground="{DynamicResource StatusWarningBrush}"
+									   Visibility="{Binding IsProblem, Converter={StaticResource BoolToVisibility}}" />
+						</Grid>
+					</DataTemplate>
+				</ItemsControl.ItemTemplate>
+			</ItemsControl>
+			<TextBlock Style="{StaticResource HintText}" TextWrapping="Wrap"
+					   Text="Import-Module бере першу теку PSModulePath, у якій є модуль. Тека залежностей IndexAdvisor — завжди перша; далі — профіль PowerShell і системні теки:" />
+			<ItemsControl ItemsSource="{Binding Main.Dependencies.SearchOrder}" Margin="12,4,0,0" Focusable="False">
+				<ItemsControl.ItemTemplate>
+					<DataTemplate>
+						<TextBlock Text="{Binding}" FontFamily="{StaticResource MonoFont}" FontSize="11.5" Opacity="0.8" TextWrapping="Wrap" />
+					</DataTemplate>
+				</ItemsControl.ItemTemplate>
+			</ItemsControl>
+			<StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+				<Button Content="Встановити з PowerShell Gallery…" Command="{Binding Main.Dependencies.InstallCommand}"
+						ToolTip="Найновіші версії всіх залежностей у теку залежностей IndexAdvisor" />
+				<Button Content="Перевірити" Command="{Binding Main.Dependencies.RefreshCommand}" Margin="8,0,0,0" />
+				<Button Content="Відкрити теку" Command="{Binding Main.Dependencies.OpenFolderCommand}" Margin="8,0,0,0" />
+				<Button Content="Копіювати команду Save-Module" Command="{Binding Main.Dependencies.CopyCommandCommand}" Margin="8,0,0,0"
+						ToolTip="{Binding Main.Dependencies.SaveModuleCommand}" />
+			</StackPanel>
+			<TextBlock Style="{StaticResource HintText}" TextWrapping="Wrap"
+					   Text="Без доступу до PowerShell Gallery — та сама команда в PowerShell, за потреби з -Repository внутрішнього репозиторію." />
 
 			<TextBlock Style="{StaticResource SectionHeader}" Text="Поведінка" />
 			<StackPanel Orientation="Horizontal" Margin="0,8,0,0">

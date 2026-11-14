@@ -16,16 +16,20 @@ public sealed class MainViewModel : ObservableObject
 
 	private readonly AppSettings _settings;
 	private int _selectedTab;
+	private ModuleLocation _module;
 	private string _modulePath;
 
 	public MainViewModel(AppSettings settings)
 	{
 		_settings = settings;
-		_modulePath = ModuleLocator.Resolve(settings.ModulePath);
+		_module = ModuleLocator.Locate(settings.ModulePath);
+		_modulePath = _module.Path;
 		Log = new LogViewModel();
 		PreferencesViewModel.ApplyAll(settings, Log);
 		var interaction = new InteractionService(Log);
-		var service = new IndexAdvisorService(new PowerShellRunner(interaction), () => _modulePath);
+		var runner = new PowerShellRunner(interaction);
+		var service = new IndexAdvisorService(runner, () => _modulePath);
+		Dependencies = new DependenciesViewModel(runner, Log);
 
 		Config = new ConfigStateViewModel(service, Log);
 		Results = new ResultsViewModel(settings);
@@ -54,7 +58,13 @@ public sealed class MainViewModel : ObservableObject
 
 		BrowseModuleCommand = new RelayCommand(BrowseModule);
 		ResetModuleCommand = new RelayCommand(() => SetModulePath(null), () => !string.IsNullOrWhiteSpace(_settings.ModulePath));
+		OpenModuleFolderCommand = new RelayCommand(
+			() => DialogService.OpenWithShell(Path.GetDirectoryName(_modulePath)!),
+			() => _module.Exists);
+		OpenAppFolderCommand = new RelayCommand(() => DialogService.OpenWithShell(AppDirectory));
 	}
+
+	public DependenciesViewModel Dependencies { get; }
 
 	public LogViewModel Log { get; }
 
@@ -76,31 +86,63 @@ public sealed class MainViewModel : ObservableObject
 		set => SetProperty(ref _selectedTab, value);
 	}
 
-	public string ModulePath
+	/// <summary>Повний шлях до IndexAdvisor.psd1, з якого програма імпортує модуль (Import-Module -Name шлях).</summary>
+	public string ModulePath => _modulePath;
+
+	public ModuleLocation Module
 	{
-		get => _modulePath;
+		get => _module;
 		private set
 		{
-			if (SetProperty(ref _modulePath, value))
+			if (SetProperty(ref _module, value))
 			{
+				_modulePath = value.Path;
+				OnPropertyChanged(nameof(ModulePath));
 				OnPropertyChanged(nameof(ModuleText));
+				OnPropertyChanged(nameof(ModuleSummary));
+				OnPropertyChanged(nameof(ModuleMissing));
 			}
 		}
 	}
 
-	public string ModuleText
-	{
-		get
-		{
-			var version = ModuleLocator.ReadModuleVersion(_modulePath);
-			var source = File.Exists(_modulePath) ? _modulePath : $"{_modulePath} (з PSModulePath)";
-			return $"Модуль IndexAdvisor {version ?? "?"}: {source} · PowerShell {ModuleLocator.PowerShellVersion}";
-		}
-	}
+	public bool ModuleMissing => !_module.Exists;
+
+	/// <summary>Версія й джерело модуля: «0.1.0, вбудований у програму».</summary>
+	public string ModuleSummary => _module.Exists
+		? $"IndexAdvisor {ModuleLocator.ReadModuleVersion(_modulePath) ?? "?"}, {_module.SourceText}"
+		: _module.Configured is null
+			? "Модуль IndexAdvisor не знайдено в теці програми"
+			: "Вибраний модуль IndexAdvisor не знайдено (інший не підставляється)";
+
+	/// <summary>Рядок стану внизу вікна.</summary>
+	public string ModuleText => _module.Exists
+		? $"Модуль {ModuleSummary}: {_modulePath} · PowerShell {ModuleLocator.PowerShellVersion}"
+		: $"{ModuleSummary}: {_modulePath} — вкладка «Параметри»";
+
+	/// <summary>Тека програми (для одиночного exe — %LOCALAPPDATA%\IndexAdvisor\app\&lt;версія&gt;).</summary>
+	public string AppDirectory { get; } = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);
+
+	/// <summary>Одиночний exe, з якого встановлено й запущено програму (null — запущено напряму).</summary>
+	public string? LauncherPath { get; } = Environment.GetEnvironmentVariable(InstallLayout.LauncherVariable) is { Length: > 0 } launcher ? launcher : null;
+
+	public string AppText => LauncherPath is null
+		? $"Програма {AppVersion}: {AppDirectory}"
+		: $"Програма {AppVersion}: {AppDirectory} (встановлено з {LauncherPath})";
+
+	public static string AppVersion { get; } = typeof(MainViewModel).Assembly
+		.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+		.OfType<System.Reflection.AssemblyInformationalVersionAttribute>()
+		.FirstOrDefault()?.InformationalVersion.Split('+')[0] ?? "?";
+
+	public string PowerShellText => $"PowerShell {ModuleLocator.PowerShellVersion} (вбудований, Microsoft.PowerShell.SDK)";
 
 	public ICommand BrowseModuleCommand { get; }
 
 	public ICommand ResetModuleCommand { get; }
+
+	public ICommand OpenModuleFolderCommand { get; }
+
+	public ICommand OpenAppFolderCommand { get; }
 
 	/// <summary>
 	/// Після показу вікна: відновити форму й прочитати каталог результатів.
@@ -140,10 +182,8 @@ public sealed class MainViewModel : ObservableObject
 				Log.Enqueue(HostLine.System($"Не вдалося відкрити {path}: {ex.Message}"));
 			}
 		}
-		if (!File.Exists(_modulePath))
-		{
-			Log.Enqueue(HostLine.System("Маніфест IndexAdvisor.psd1 не знайдено поруч із програмою: модуль імпортуватиметься з PSModulePath. Шлях можна вказати на вкладці «Параметри»."));
-		}
+		LogModule();
+		_ = Dependencies.RefreshAsync(logProblems: true);
 		await Editor.InitializeAsync();
 		if (Results.Root is not null)
 		{
@@ -187,9 +227,24 @@ public sealed class MainViewModel : ObservableObject
 	{
 		_settings.ModulePath = path;
 		_settings.Save();
-		ModulePath = ModuleLocator.Resolve(path);
+		Module = ModuleLocator.Locate(path);
+		LogModule();
 		CheckDownloadMark();
 		_ = Editor.SyncFormAsync(force: true);
+	}
+
+	/// <summary>Звідки модуль: у журнал під час запуску програми й після зміни в «Параметрах».</summary>
+	private void LogModule()
+	{
+		if (_module.Exists)
+		{
+			Log.Enqueue(HostLine.System($"Модуль {ModuleSummary}: {_modulePath}"));
+			return;
+		}
+		var hint = _module.Configured is null
+			? "Перевстановіть програму або вкажіть IndexAdvisor.psd1 на вкладці «Параметри»."
+			: "Вкажіть інший IndexAdvisor.psd1 на вкладці «Параметри» або натисніть «Вбудований модуль».";
+		Log.Enqueue(new HostLine(DateTime.Now, HostLineKind.Error, $"{ModuleSummary}: {_modulePath}. {hint}"));
 	}
 
 	/// <summary>

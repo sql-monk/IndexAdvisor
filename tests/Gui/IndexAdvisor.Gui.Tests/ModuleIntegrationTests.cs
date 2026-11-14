@@ -31,8 +31,10 @@ public sealed class ModuleIntegrationTests : IDisposable
 	[Fact]
 	public void ModuleLocator_FindsRepositorySource()
 	{
+		Assert.Equal(ModuleSource.Repository, ModuleLocator.Locate(null).Source);
 		Assert.EndsWith(Path.Combine("src", "IndexAdvisor", "IndexAdvisor.psd1"), _modulePath, StringComparison.OrdinalIgnoreCase);
 		Assert.NotNull(ModuleLocator.FindCliScript(_modulePath));
+		Assert.Null(ModuleLocator.FindCliScript(ModuleLocator.BundledPath));
 	}
 
 	[Fact]

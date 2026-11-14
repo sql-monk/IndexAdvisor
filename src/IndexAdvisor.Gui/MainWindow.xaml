@@ -14,8 +14,19 @@
 				Padding="12,6"
 				BorderThickness="0,1,0,0"
 				BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
-			<TextBlock Text="{Binding ModuleText}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Opacity="0.7"
-					   ToolTip="{Binding ModulePath}" />
+			<DockPanel>
+				<!-- Чого бракує з залежностей модуля (перевірка під час запуску програми). -->
+				<TextBlock DockPanel.Dock="Right" Text="{Binding Dependencies.Summary}" Margin="16,0,0,0" VerticalAlignment="Center"
+						   Foreground="{DynamicResource StatusWarningBrush}" TextTrimming="CharacterEllipsis" MaxWidth="560"
+						   ToolTip="Вкладка «Параметри» → «Залежності модуля»"
+						   Visibility="{Binding Dependencies.HasProblems, Converter={StaticResource BoolToVisibility}}" />
+				<Grid VerticalAlignment="Center">
+					<TextBlock Text="{Binding ModuleText}" TextTrimming="CharacterEllipsis" Opacity="0.7" ToolTip="{Binding ModulePath}"
+							   Visibility="{Binding ModuleMissing, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}" />
+					<TextBlock Text="{Binding ModuleText}" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource StatusErrorBrush}" ToolTip="{Binding ModulePath}"
+							   Visibility="{Binding ModuleMissing, Converter={StaticResource BoolToVisibility}}" />
+				</Grid>
+			</DockPanel>
 		</Border>
 
 		<TabControl SelectedIndex="{Binding SelectedTab}" Margin="10,6,10,0">

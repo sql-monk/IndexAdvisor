@@ -5,13 +5,15 @@
 	Збирає графічний інтерфейс IndexAdvisor (src\IndexAdvisor.Gui) в exe.
 
 .DESCRIPTION
-	За замовчуванням — один файл «все в одному» (-Mode SingleFile): .NET 10, PowerShell 7.6 (SDK) і копія модуля
-	IndexAdvisor усередині exe. На машині DBA не потрібні ні .NET, ні pwsh — лише модулі PowerShell з розділу
-	«Встановлення» README. Під час першого запуску exe розпаковує вміст у %TEMP%\.net\<ім'я exe>\<хеш>
-	(близько 200 МБ; наступні запуски беруть його звідти, кожна нова збірка — нова тека). Інше місце задає змінна
-	середовища DOTNET_BUNDLE_EXTRACT_BASE_DIR.
+	За замовчуванням — один файл «все в одному» (-Mode SingleFile): невеликий самодостатній лаунчер
+	(src\IndexAdvisor.Launcher) з архівом програми всередині — .NET 10, PowerShell 7.6 (SDK) і копія модуля IndexAdvisor.
+	На машині DBA не потрібні ні .NET, ні pwsh. Під час першого запуску версії exe розпаковує програму в
+	%LOCALAPPDATA%\IndexAdvisor\app\<версія> (близько 220 МБ, 2–3 с), прибирає там інші версії й розпакування exe
+	до 0.3.0 у %TEMP%\.net, а далі лише запускає звідти IndexAdvisor.Gui.exe. Залежності модуля з PowerShell Gallery
+	програма шукає насамперед у %LOCALAPPDATA%\IndexAdvisor\Modules і вміє встановити їх туди (вкладка «Параметри»).
 
-	Інші режими — тека з IndexAdvisor.Gui.exe і копією модуля в Modules\IndexAdvisor:
+	Інші режими — тека з IndexAdvisor.Gui.exe і копією модуля в Modules\IndexAdvisor (працює з того місця, куди її
+	розпакували):
 	  SelfContained       з .NET усередині;
 	  FrameworkDependent  без .NET, потрібен .NET 10 Desktop Runtime.
 
@@ -22,8 +24,8 @@
 	Версія — <Version> з src\IndexAdvisor.Gui\IndexAdvisor.Gui.csproj. Попередній результат того самого режиму
 	видаляється перед збиранням.
 
-	Exe з теки всередині репозиторію працює з живим модулем src\IndexAdvisor, а не зі своєю копією (так GUI шукає
-	модуль); одиночний exe завжди бере свою копію.
+	Опублікована програма завжди бере свою копію модуля (Modules\IndexAdvisor), навіть якщо лежить у репозиторії;
+	живий src\IndexAdvisor бере лише збірка для розробки (dotnet run, dotnet build, тести).
 
 	Потрібен .NET SDK 10 або новіший: https://dotnet.microsoft.com/download/dotnet/10.0
 
@@ -49,12 +51,12 @@
 .EXAMPLE
 	./build.ps1
 
-	Один exe: dist\IndexAdvisor-0.2.0-win-x64.exe.
+	Один exe: dist\IndexAdvisor-0.3.0-win-x64.exe.
 
 .EXAMPLE
 	./build.ps1 -Mode All -Test -Zip
 
-	Тести GUI, потім exe, IndexAdvisor-0.2.0-win-x64.zip, IndexAdvisor-0.2.0-win-x64-fx.zip і SHA256SUMS.txt.
+	Тести GUI, потім exe, IndexAdvisor-0.3.0-win-x64.zip, IndexAdvisor-0.3.0-win-x64-fx.zip і SHA256SUMS.txt.
 
 .OUTPUTS
 	Для кожного результату — Mode, Path, SizeMB.
@@ -81,9 +83,10 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $project = Join-Path $PSScriptRoot 'src\IndexAdvisor.Gui\IndexAdvisor.Gui.csproj'
+$launcherProject = Join-Path $PSScriptRoot 'src\IndexAdvisor.Launcher\IndexAdvisor.Launcher.csproj'
 $testProject = Join-Path $PSScriptRoot 'tests\Gui\IndexAdvisor.Gui.Tests\IndexAdvisor.Gui.Tests.csproj'
 $manifest = Join-Path $PSScriptRoot 'src\IndexAdvisor\IndexAdvisor.psd1'
-$exeName = 'IndexAdvisor.Gui.exe'
+$launcherExeName = 'IndexAdvisor.Launcher.exe'
 $sdkUrl = 'https://dotnet.microsoft.com/download/dotnet/10.0'
 
 function Invoke-Dotnet {
@@ -158,21 +161,36 @@ $results = [System.Collections.Generic.List[object]]::new()
 foreach ($current in $modes) {
 	Write-Host ''
 	Write-Host "== $current" -ForegroundColor Cyan
-	$publish = @('publish', $project, '-c', $Configuration, '-r', $Runtime, '-nologo')
+	# Опублікована програма бере лише свою копію модуля (без шляху до src\IndexAdvisor цього репозиторію).
+	$publish = @('publish', $project, '-c', $Configuration, '-r', $Runtime, '-nologo', '-p:UseRepositoryModule=false')
 	switch ($current) {
 		'SingleFile' {
-			# Публікація в тимчасову теку: поруч з exe не має лишитися нічого, крім символів налагодження.
+			# Програма (тека SelfContained) -> zip -> ресурс лаунчера; проміжне — у тимчасовій теці поруч.
 			$target = Join-Path $OutputPath "$baseName.exe"
-			$publishDir = Join-Path $OutputPath ".publish-$baseName-single"
+			$workDir = Join-Path $OutputPath ".publish-$baseName-single"
+			$appDir = Join-Path $workDir 'app'
+			$launcherDir = Join-Path $workDir 'launcher'
+			$payload = Join-Path $workDir 'payload.zip'
 			Remove-Output -Path $target
-			Remove-Output -Path $publishDir
-			Invoke-Dotnet -Arguments ($publish + @('--self-contained', 'true', '-p:PublishSingleFile=true', '-o', $publishDir))
-			$extra = @(Get-ChildItem -LiteralPath $publishDir | Where-Object { $_.Name -ne $exeName -and $_.Extension -ne '.pdb' })
-			if ($extra) {
-				throw "Exe вийшов не самодостатнім, поруч лишилися: $($extra.Name -join ', ') ($publishDir)."
+			Remove-Output -Path $workDir
+			Invoke-Dotnet -Arguments ($publish + @('--self-contained', 'true', '-o', $appDir))
+			if (-not (Test-Path -LiteralPath (Join-Path $appDir 'Modules\IndexAdvisor\IndexAdvisor.psd1'))) {
+				throw "У програмі немає Modules\IndexAdvisor ($appDir)."
 			}
-			Move-Item -LiteralPath (Join-Path $publishDir $exeName) -Destination $target
-			Remove-Output -Path $publishDir
+			[System.IO.Compression.ZipFile]::CreateFromDirectory($appDir, $payload, [System.IO.Compression.CompressionLevel]::Optimal, $false)
+			# Ідентифікатор збірки: лаунчер не розпаковує ту саму збірку вдруге й замінює іншу збірку тієї самої версії.
+			$payloadId = (Get-FileHash -LiteralPath $payload -Algorithm SHA256).Hash.Substring(0, 16).ToLowerInvariant()
+			Invoke-Dotnet -Arguments @(
+				'publish', $launcherProject, '-c', $Configuration, '-r', $Runtime, '-nologo',
+				'-p:PublishSingleFile=true', "-p:Version=$version", "-p:PayloadPath=$payload", "-p:PayloadId=$payloadId",
+				'-o', $launcherDir)
+			# Лаунчер нічого не розпаковує поруч із собою: крім exe, допустимі лише символи налагодження.
+			$extra = @(Get-ChildItem -LiteralPath $launcherDir | Where-Object { $_.Name -ne $launcherExeName -and $_.Extension -ne '.pdb' })
+			if ($extra) {
+				throw "Exe вийшов не самодостатнім, поруч лишилися: $($extra.Name -join ', ') ($launcherDir)."
+			}
+			Move-Item -LiteralPath (Join-Path $launcherDir $launcherExeName) -Destination $target
+			Remove-Output -Path $workDir
 		}
 		'SelfContained' {
 			$target = Join-Path $OutputPath $baseName

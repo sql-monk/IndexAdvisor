@@ -24,6 +24,8 @@ Import-Module .\src\IndexAdvisor\IndexAdvisor.psd1
 
 `Microsoft.SqlServer.TransactSql.ScriptDom` і `Microsoft.Data.SqlClient` беруться з `dbatools.library` (встановлюється разом із dbatools). dbatools завантажується ліниво — лише під час реальних підключень.
 
+Графічному інтерфейсу ні pwsh, ні `Install-Module` не потрібні: він ставить ці модулі сам у `%LOCALAPPDATA%\IndexAdvisor\Modules` (див. «[Графічний інтерфейс](#графічний-інтерфейс-windows-net)»).
+
 ## Підготовка облікового запису на цільових серверах
 
 Програма за замовчуванням підключається лише під штатним логіном `index-advisor` (ім'я задається в `security.standardLogin`). Логін створюється скриптом [sql/Setup-IndexAdvisorLogin.sql](sql/Setup-IndexAdvisorLogin.sql) з правами лише на метадані:
@@ -160,23 +162,49 @@ pwsh -NoProfile -File .\bin\IndexAdvisor.ps1 -Config D:\IndexAdvisor\run.yaml -N
 
 ## Графічний інтерфейс (Windows, .NET)
 
-`src/IndexAdvisor.Gui` — WPF-застосунок на .NET 10 поверх того самого модуля: нічого з логіки аналізу не дублює, а викликає `Invoke-IndexAdvisor`, `Test-IaConfig`, `New-IaConfigTemplate`, `New-IaIndexMaintenance` і `Install-IaServiceLogin` у вбудованому PowerShell 7.6 (Microsoft.PowerShell.SDK). Окремо встановлений `pwsh` не потрібен; модулі з розділу «Встановлення» — потрібні. Тема — світла, темна або як у Windows (перемикається без перезапуску).
+`src/IndexAdvisor.Gui` — WPF-застосунок на .NET 10 поверх того самого модуля: нічого з логіки аналізу не дублює, а викликає `Invoke-IndexAdvisor`, `Test-IaConfig`, `New-IaConfigTemplate`, `New-IaIndexMaintenance` і `Install-IaServiceLogin` у вбудованому PowerShell 7.6 (Microsoft.PowerShell.SDK). Окремо встановлений `pwsh` не потрібен. Тема — світла, темна або як у Windows (перемикається без перезапуску).
 
 ```powershell
 dotnet run --project .\src\IndexAdvisor.Gui                     # з репозиторію (потрібен .NET 10 SDK)
 .\build.ps1                                                       # один exe для DBA: dist\IndexAdvisor-<версія>-win-x64.exe
-.\IndexAdvisor-0.2.0-win-x64.exe D:\IndexAdvisor\run.yaml          # відкрити конфігурацію; тека або result.json — одразу «Результати»
+.\IndexAdvisor-0.3.0-win-x64.exe D:\IndexAdvisor\run.yaml          # відкрити конфігурацію; тека або result.json — одразу «Результати»
 ```
 
 **Збірка.** `build.ps1` у корені репозиторію (pwsh 7.2+, .NET SDK 10+) кладе результат у `dist`:
 
 | `-Mode` | Результат | Що потрібно на машині DBA |
 |---|---|---|
-| `SingleFile` (за замовчуванням) | `IndexAdvisor-<версія>-win-x64.exe`, близько 90 МБ | лише модулі PowerShell з розділу «Встановлення» |
-| `SelfContained` | тека `IndexAdvisor-<версія>-win-x64` з `IndexAdvisor.Gui.exe` | те саме |
-| `FrameworkDependent` | тека `IndexAdvisor-<версія>-win-x64-fx` | ще й .NET 10 Desktop Runtime |
+| `SingleFile` (за замовчуванням) | `IndexAdvisor-<версія>-win-x64.exe`, близько 100 МБ | нічого |
+| `SelfContained` | тека `IndexAdvisor-<версія>-win-x64` з `IndexAdvisor.Gui.exe` | нічого; працює з того місця, куди теку розпакували |
+| `FrameworkDependent` | тека `IndexAdvisor-<версія>-win-x64-fx` | .NET 10 Desktop Runtime |
 
-Одиночний exe містить .NET, PowerShell SDK і модуль; під час першого запуску він розпаковує їх у `%TEMP%\.net\<ім'я exe>\<хеш>` (близько 200 МБ, інше місце — змінна середовища `DOTNET_BUNDLE_EXTRACT_BASE_DIR`). `.\build.ps1 -Mode All -Test -Zip` проганяє тести GUI і збирає все для релізу: exe, обидва zip і `SHA256SUMS.txt`; `-Runtime win-arm64` — для ARM. Exe з теки всередині репозиторію працює з живим `src\IndexAdvisor`, а не зі своєю копією.
+`.\build.ps1 -Mode All -Test -Zip` проганяє тести GUI і збирає все для релізу: exe, обидва zip і `SHA256SUMS.txt`; `-Runtime win-arm64` — для ARM.
+
+**Де що лежить.** Усе, що ставить програма, — в одному місці, `%LOCALAPPDATA%\IndexAdvisor`:
+
+| Що | Де |
+|---|---|
+| Програма з одиночного exe: .NET, PowerShell SDK, модуль | `%LOCALAPPDATA%\IndexAdvisor\app\<версія>` |
+| Модуль IndexAdvisor | `Modules\IndexAdvisor` у теці програми |
+| Залежності модуля з PowerShell Gallery | `%LOCALAPPDATA%\IndexAdvisor\Modules` |
+| Налаштування програми й шаблони конфігурацій (переносяться з профілем) | `%APPDATA%\IndexAdvisor` |
+
+Одиночний exe — це невеликий лаунчер з архівом програми всередині. Під час першого запуску своєї версії він розпаковує програму в `app\<версія>` (близько 220 МБ, 2–3 с), прибирає інші версії з `app` і розпакування exe до 0.3.0 у `%TEMP%\.net\IndexAdvisor-*`, а далі лише запускає `app\<версія>\IndexAdvisor.Gui.exe` з тими самими аргументами (0,1–0,2 с). Сам exe можна тримати де завгодно; щоб розпакувати програму наново, видаліть `app\<версія>`.
+
+**Модуль IndexAdvisor** — одне правило без пошуку по диску й без PSModulePath; звідки його взято, видно в рядку стану внизу вікна, у журналі під час запуску й на вкладці «Параметри»:
+
+1. `IndexAdvisor.psd1`, вибраний на вкладці «Параметри» (щоб перевірити іншу версію без перезбирання). Вибір зберігається між версіями програми; якщо файлу вже немає, програма показує помилку й не підставляє інший модуль. «Вбудований модуль» забуває вибір.
+2. Лише збірка для розробки (`dotnet run`, `dotnet build`, тести): живий `src\IndexAdvisor` того репозиторію, з якого її зібрано.
+3. `Modules\IndexAdvisor` у теці програми — копія, яку кладе збірка. Опублікована програма (`build.ps1`, `dotnet publish`) бере саме її, навіть якщо лежить усередині репозиторію.
+
+**Залежності модуля** (powershell-yaml, Microsoft.PowerShell.SecretManagement і SecretStore, dbatools з dbatools.library) вбудований PowerShell шукає в PSModulePath, і `Import-Module` бере першу теку, у якій модуль є. Першою програма завжди ставить `%LOCALAPPDATA%\IndexAdvisor\Modules`, далі йдуть `Документи\PowerShell\Modules` (з OneDrive — у теці OneDrive), `Program Files\PowerShell\Modules` і системні теки. Вкладка «Параметри» → «Залежності модуля» показує версію й теку кожного модуля, порядок пошуку й чого бракує (те саме — попередженням у рядку стану). «Встановити з PowerShell Gallery…» завантажує найновіші версії в `%LOCALAPPDATA%\IndexAdvisor\Modules` (близько 80 МБ, без PowerShellGet і pwsh; проксі — системний), і вони мають пріоритет над копіями в профілі. Без доступу до Інтернету — «Копіювати команду Save-Module» і виконати її в PowerShell, за потреби з `-Repository` внутрішнього репозиторію:
+
+```powershell
+New-Item -ItemType Directory -Force -Path "$env:LOCALAPPDATA\IndexAdvisor\Modules" | Out-Null
+Save-Module -Name powershell-yaml, Microsoft.PowerShell.SecretManagement, Microsoft.PowerShell.SecretStore, dbatools.library, dbatools -Path "$env:LOCALAPPDATA\IndexAdvisor\Modules" -Repository PSGallery
+```
+
+Модулі з `Install-Module -Scope CurrentUser` у Windows PowerShell 5.1 лягають у `Документи\WindowsPowerShell\Modules` — цієї теки вбудований PowerShell 7 не бачить.
 
 - **Запуск.** Файл YAML перевіряється автоматично, а поля форми показують значення з конфігурації як підказки; заповнене поле перевизначає YAML так само, як параметр CLI. Перемикачі тристанні: «як у конфігурації», `-Switch`, `-Switch:$false`. Небезпечні режими — окремо й з підтвердженням. Внизу форми — готовий командний рядок для сесії PowerShell і для SQL Agent (CmdExec) чи Планувальника завдань (`pwsh -File bin\IndexAdvisor.ps1 ... -NonInteractive`).
 - **Журнал** показує вивід модуля (`Write-Host`, попередження, помилки, `-Verbose`) під час виконання; «Зупинити» перериває конвеєр.
@@ -187,10 +215,10 @@ dotnet run --project .\src\IndexAdvisor.Gui                     # з репоз�
 - **Збереження з GUI.** «Зберегти поля в конфігурацію» на вкладці «Запуск» переносить заповнені поля форми запуску (сервери, кілька баз, схеми й таблиці, модуль, провайдер, режими…) у YAML — у поточний файл або новий; небезпечні режими й `-FromArchive` лишаються рішенням окремого запуску. Нову конфігурацію без файлу програма запропонує зберегти перед запуском.
 - **Шаблони.** «Зберегти як шаблон» кладе налаштування в теку шаблонів (типово `%APPDATA%\IndexAdvisor\templates`, можна вказати спільну теку команди), за бажанням без серверів і баз. «Нова з шаблону» — вибрати шаблон (або стандартний шаблон модуля), вказати лише сервери й бази, за бажанням одразу зберегти у файл — і запускати.
 - **Інструменти.** `New-IaIndexMaintenance` (скрипти AdaptiveIndexDefrag з архіву, винятки з `result.json`) і `Install-IaServiceLogin` (Verify — лише читання; Install, AddDatabase, Remove — з підтвердженням; облікові дані адміністратора SQL — у діалозі) з усіма параметрами й готовим командним рядком.
-- **Параметри.** Тема, розмір шрифту, перенос і довжина журналу, модуль IndexAdvisor, політика виконання вбудованого PowerShell, тека шаблонів, автоперевірка конфігурації, звук і перехід до результатів після запуску, глибина пошуку `result.json`.
+- **Параметри.** Тема, розмір шрифту, перенос і довжина журналу, модуль IndexAdvisor (джерело, шлях, вибір іншого), тека програми, залежності модуля (перевірка, порядок пошуку, встановлення), політика виконання вбудованого PowerShell, тека шаблонів, автоперевірка конфігурації, звук і перехід до результатів після запуску, глибина пошуку `result.json`.
 - **Результати.** Запуски з каталогу `output.path` (будь-яка глибина до трьох рівнів): статус і код, період даних, модель і вартість; рекомендації з фільтрами, обґрунтуванням, результатами перевірки, умовами видалення 4.4 і скриптами виконання й відкату (копіювання, збереження); знахідки правил, попередження, нотатки моделі, дозапити; кнопки HTML-звіту й теки запуску. Запуск без формату `Json` показується з пам'яті до закриття програми.
 
-Модуль шукається так: шлях, вибраний на вкладці «Параметри» → `src\IndexAdvisor` у репозиторії над exe → копія `Modules\IndexAdvisor` поруч з exe (її кладе збірка; в одиночному exe — усередині). Відносні шляхи YAML розв'язуються від теки файлу конфігурації. Політика виконання вбудованого PowerShell — типово `RemoteSigned` для процесу. Якщо архів програми завантажено з Інтернету й розпаковано Провідником, файли модуля мають позначку Windows «з Інтернету», і `RemoteSigned` їх не завантажить: під час запуску GUI пропонує зняти позначку (те саме, що `Unblock-File`), а помилка завантаження модуля в журналі містить пораду. Розбір YAML у формі — тим самим powershell-yaml, що й модуль. Налаштування програми й форми (без секретів і без небезпечних режимів) — у `%APPDATA%\IndexAdvisor\gui-settings.json`.
+Відносні шляхи YAML розв'язуються від теки файлу конфігурації. Політика виконання вбудованого PowerShell — типово `RemoteSigned` для процесу. Якщо zip програми (`SelfContained`, `FrameworkDependent`) завантажено з Інтернету й розпаковано Провідником, файли модуля мають позначку Windows «з Інтернету», і `RemoteSigned` їх не завантажить: під час запуску GUI пропонує зняти позначку (те саме, що `Unblock-File`), а помилка завантаження модуля в журналі містить пораду. Одиночний exe розпаковує програму сам, без цієї позначки. Розбір YAML у формі — тим самим powershell-yaml, що й модуль. Налаштування програми й форми (без секретів і без небезпечних режимів) — у `%APPDATA%\IndexAdvisor\gui-settings.json`.
 
 ## Обслуговування індексів (AdaptiveIndexDefrag)
 
@@ -262,7 +290,7 @@ $env:IA_TEST_OUTPUT_PATH = '.\live-out'   # залишити звіти й жу�
 Invoke-Pester -Path .\tests\Integration, .\tests\Core\DbCommand.Integration.Tests.ps1 -TagFilter Integration -Output Detailed
 ```
 
-Тести GUI (xUnit: командний рядок, розбір `result.json`, хост PowerShell з діалогами, форма налаштувань і шаблони — з перевіркою через справжній `Test-IaConfig`, без серверів і моделі):
+Тести GUI (xUnit: командний рядок, розбір `result.json`, хост PowerShell з діалогами, форма налаштувань і шаблони — з перевіркою через справжній `Test-IaConfig`; пошук модуля, встановлення лаунчером одиночного exe, порядок PSModulePath і встановлення залежностей з підставною PowerShell Gallery — без серверів, моделі й мережі):
 
 ```powershell
 dotnet test .\tests\Gui\IndexAdvisor.Gui.Tests

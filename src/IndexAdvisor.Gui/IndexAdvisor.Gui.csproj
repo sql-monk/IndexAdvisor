@@ -9,7 +9,7 @@
 		<LangVersion>latest</LangVersion>
 		<RootNamespace>IndexAdvisor.Gui</RootNamespace>
 		<AssemblyName>IndexAdvisor.Gui</AssemblyName>
-		<Version>0.2.0</Version>
+		<Version>0.3.0</Version>
 		<Product>IndexAdvisor</Product>
 		<Description>Графічна оболонка IndexAdvisor: запуск аналізу, підтвердження дозапитів моделі, перегляд рекомендацій.</Description>
 		<!-- ThemeMode (Fluent) у WPF позначено як експериментальний. -->
@@ -36,22 +36,36 @@
 		<InternalsVisibleTo Include="IndexAdvisor.Gui.Tests" />
 	</ItemGroup>
 
-	<!-- Копія модуля поруч з exe: опублікована тека працює без репозиторію (Modules\IndexAdvisor). -->
+	<!-- Копія модуля в теці програми: Modules\IndexAdvisor (ModuleLocator.BundledPath). -->
 	<ItemGroup>
 		<Content Include="..\IndexAdvisor\**\*" LinkBase="Modules\IndexAdvisor" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" Visible="false" />
 	</ItemGroup>
 
+	<!-- Розкладка %LOCALAPPDATA%\IndexAdvisor — спільна з лаунчером одиночного exe. -->
+	<ItemGroup>
+		<Compile Include="..\IndexAdvisor.Launcher\InstallLayout.cs" Link="Infrastructure\InstallLayout.cs" />
+	</ItemGroup>
+
 	<!--
-		Один exe (build.ps1 або dotnet publish -r win-x64 -p:PublishSingleFile=true). Без повного розпакування поруч з exe
-		лишаються теки Modules (модуль IndexAdvisor) і runtimes (модулі PowerShell SDK), бо це файли, а не збірки.
-		Тому exe під час першого запуску розпаковує весь вміст у %TEMP%\.net\<ім'я exe>\<хеш>
-		(інше місце — змінна DOTNET_BUNDLE_EXTRACT_BASE_DIR) і працює звідти, як опублікована тека.
+		Збірка для розробки (dotnet build/run, тести) працює з живим src\IndexAdvisor свого репозиторію: шлях записується
+		в збірку (ModuleLocator.RepositoryPath). Опублікована програма (dotnet publish, build.ps1) його не має й бере лише
+		свою копію Modules\IndexAdvisor. Явно: -p:UseRepositoryModule=true|false.
 	-->
-	<PropertyGroup Condition="'$(PublishSingleFile)' == 'true'">
-		<IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
-		<EnableCompressionInSingleFile Condition="'$(SelfContained)' == 'true'">true</EnableCompressionInSingleFile>
-		<!-- NETSDK1244 радить розпакування в пам'ять, але воно лишає модулі поруч з exe. -->
-		<MSBuildWarningsAsMessages>$(MSBuildWarningsAsMessages);NETSDK1244</MSBuildWarningsAsMessages>
+	<PropertyGroup>
+		<UseRepositoryModule Condition="'$(UseRepositoryModule)' == '' and '$(_IsPublishing)' == 'true'">false</UseRepositoryModule>
+		<UseRepositoryModule Condition="'$(UseRepositoryModule)' == ''">true</UseRepositoryModule>
 	</PropertyGroup>
+	<ItemGroup Condition="'$(UseRepositoryModule)' == 'true'">
+		<AssemblyMetadata Include="IndexAdvisor.RepositoryModule" Value="$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\IndexAdvisor\IndexAdvisor.psd1'))" />
+	</ItemGroup>
+
+	<!--
+		Одиночний exe — це лаунчер src\IndexAdvisor.Launcher з цією програмою всередині (build.ps1 -Mode SingleFile): він
+		розпаковує її в %LOCALAPPDATA%\IndexAdvisor\app\<версія>. Сам GUI одним файлом не публікується: .NET розпакував би
+		його в %TEMP%\.net, а без розпакування модулі PowerShell лишаються поруч з exe.
+	-->
+	<Target Name="RejectSingleFilePublish" BeforeTargets="Build" Condition="'$(PublishSingleFile)' == 'true'">
+		<Error Text="IndexAdvisor.Gui не публікується одним файлом. Одиночний exe збирає build.ps1 -Mode SingleFile (лаунчер src\IndexAdvisor.Launcher)." />
+	</Target>
 
 </Project>

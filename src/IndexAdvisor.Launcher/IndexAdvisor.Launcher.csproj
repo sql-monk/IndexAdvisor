@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!--
+		Одиночний exe IndexAdvisor: самодостатній лаунчер з архівом програми всередині (див. Program.cs).
+		Збирає build.ps1 -Mode SingleFile: спершу публікує src\IndexAdvisor.Gui як SelfContained, пакує теку в zip
+		і передає його сюди як PayloadPath разом з PayloadId (SHA256 архіву) і Version (версія GUI).
+		Без PayloadPath проєкт збирається (для тестів), але exe лише повідомить, що програми в ньому немає.
+	-->
+	<PropertyGroup>
+		<OutputType>WinExe</OutputType>
+		<TargetFramework>net10.0-windows</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<LangVersion>latest</LangVersion>
+		<RootNamespace>IndexAdvisor.Launcher</RootNamespace>
+		<AssemblyName>IndexAdvisor.Launcher</AssemblyName>
+		<Product>IndexAdvisor</Product>
+		<Description>Встановлює IndexAdvisor у %LOCALAPPDATA%\IndexAdvisor\app\&lt;версія&gt; і запускає його.</Description>
+		<ApplicationIcon>..\IndexAdvisor.Gui\Assets\IndexAdvisor.ico</ApplicationIcon>
+	</PropertyGroup>
+
+	<!--
+		Лаунчер не розпаковує себе (на відміну від GUI): у ньому немає ні вмісту, ні нативних бібліотек.
+		Без стиснення одиночного файла: архів програми вже стиснутий, а стиснена збірка розпаковувалася б у пам'ять
+		під час кожного запуску; розмір середовища виконання зменшує обрізання.
+	-->
+	<PropertyGroup Condition="'$(PublishSingleFile)' == 'true'">
+		<SelfContained>true</SelfContained>
+		<PublishTrimmed>true</PublishTrimmed>
+		<InvariantGlobalization>true</InvariantGlobalization>
+	</PropertyGroup>
+
+	<ItemGroup Condition="'$(PayloadPath)' != ''">
+		<EmbeddedResource Include="$(PayloadPath)" LogicalName="IndexAdvisor.Payload.zip" />
+		<AssemblyMetadata Include="IndexAdvisor.AppVersion" Value="$(Version)" />
+		<AssemblyMetadata Include="IndexAdvisor.PayloadId" Value="$(PayloadId)" />
+	</ItemGroup>
+
+</Project>

@@ -29,4 +29,9 @@
 		<ProjectReference Include="..\..\..\src\IndexAdvisor.Gui\IndexAdvisor.Gui.csproj" />
 	</ItemGroup>
 
+	<!-- Логіка встановлення лаунчера одиночного exe (сам лаунчер — окремий самодостатній exe, тож не посилання). -->
+	<ItemGroup>
+		<Compile Include="..\..\..\src\IndexAdvisor.Launcher\AppInstaller.cs" Link="Launcher\AppInstaller.cs" />
+	</ItemGroup>
+
 </Project>
