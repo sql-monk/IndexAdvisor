@@ -184,6 +184,8 @@ Describe 'Invoke-IaRulesEngine' {
 		$missing[0].details.keyColumns | Should -Be @('OrderDate')
 		$missing[0].details.includedColumns | Should -Be @('Amount', 'Status')
 		$missing[0].details.sourceIndexHandles | Should -Be @(11, 13)
+		$missing[0].details.uniqueCompiles | Should -Be 4
+		$missing[0].details.estimatedImprovement | Should -Be 42449556
 		$missing[0].details.estimate.estimatedSizeMb | Should -BeGreaterThan 0
 	}
 }
@@ -274,6 +276,9 @@ Describe 'Merge-IaMissingIndexes і Get-IaIndexCreateEstimate' {
 		$candidate.sourceIndexHandles | Should -Be @(11, 13)
 		$candidate.queryIds | Should -Be @(1002)
 		$candidate.userSeeks | Should -Be 5200
+		$candidate.uniqueCompiles | Should -Be 4
+		# 85.2 * 97.1 * 4300 + 80.0 * 95.5 * 900; пропозиція з плану Query Store лічильників не має.
+		$candidate.estimatedImprovement | Should -Be 42449556
 		$candidate.avgUserImpact | Should -Be 96.82
 		$candidate.estimate.tableWritesPerDay | Should -BeGreaterThan 0
 	}

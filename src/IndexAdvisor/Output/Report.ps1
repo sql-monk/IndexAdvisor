@@ -26,6 +26,28 @@ $script:IaOutCheckNames = [ordered]@{
 	PartitionAlignment = 'Секціонування й вирівнювання'
 	SafeScript = 'Скрипт не містить небезпечних інструкцій'
 }
+# Групи знахідок rules engine у звіті: порядок (як у рекомендацій — створення, видалення, обслуговування, партиціонування) і назви.
+# Правила поза списком ідуть наприкінці за абеткою.
+$script:IaOutRuleNames = [ordered]@{
+	MissingIndexCandidate = 'Кандидати на нові індекси'
+	DuplicateIndex = 'Дублікати індексів'
+	OverlappingIndex = 'Індекси, що перекриваються'
+	UnusedIndex = 'Невикористовувані індекси'
+	WriteOnlyIndex = 'Індекси лише на запис'
+	ExpensiveIndex = 'Дорогі індекси: навантаження за малої кількості читань'
+	TooManyIndexes = 'Забагато індексів на таблиці'
+	Fragmentation = 'Фрагментація'
+	PartitionCandidate = 'Кандидати на секціонування'
+	PartitionNotBeneficial = 'Секціонування не рекомендовано'
+	PartitionElimination = 'Partition elimination не працює'
+	PartitionSkew = 'Перекіс секцій'
+	EmptyPartitions = 'Порожні секції'
+	PartitionOverflow = 'Переповнена остання секція'
+	PartitionFutureBoundaries = 'Замало меж на майбутні періоди'
+}
+$script:IaOutSeverityOrder = @('High', 'Medium', 'Low', 'Info')
+# Клітинка таблиці лише з числом (з нерозривними пробілами-роздільниками тисяч): у HTML вирівнюється праворуч і не переноситься.
+$script:IaOutNumericCellPattern = '^[-+]?\d[\d ]*(?:\.\d+)?$'
 
 function Format-IaOutNumber {
 	<# Число в інваріантній культурі (до Decimals знаків після коми). #>
@@ -34,6 +56,17 @@ function Format-IaOutNumber {
 		return '—'
 	}
 	return ([math]::Round([double]$Value, $Decimals)).ToString([cultureinfo]::InvariantCulture)
+}
+
+function Format-IaOutGroupedNumber {
+	<# Число з роздільником тисяч (нерозривний пробіл) і крапкою як десятковим знаком (рівно Decimals знаків); порожнє -> '—'. #>
+	param([AllowNull()]$Value, [int]$Decimals = 0)
+	if ($null -eq $Value -or ($Value -is [string] -and $Value -eq '')) {
+		return '—'
+	}
+	$format = [System.Globalization.NumberFormatInfo]::InvariantInfo.Clone()
+	$format.NumberGroupSeparator = [string][char]0x00A0
+	return ([double]$Value).ToString("N$Decimals", $format)
 }
 
 function Format-IaOutText {
@@ -265,6 +298,74 @@ function New-IaOutRecommendationBlocks {
 	return , @($blocks.ToArray())
 }
 
+function Get-IaOutFindingGroups {
+	<# Знахідки rules engine за правилами: @{ ruleId; title; findings }. Порядок груп — $script:IaOutRuleNames, далі невідомі правила
+	   за абеткою. У групі — за важливістю (High -> Info); кандидати на нові індекси — за estimatedImprovement (спадання). #>
+	param([AllowEmptyCollection()][object[]]$Findings = @())
+	$known = @($script:IaOutRuleNames.Keys)
+	$groups = @($Findings | Where-Object { $_ } | Group-Object { [string]$_.ruleId } | Sort-Object -Property @(
+			@{ Expression = { $index = [array]::IndexOf($known, $_.Name); if ($index -lt 0) { 999 } else { $index } } }
+			@{ Expression = { $_.Name } }
+		))
+	$result = foreach ($group in $groups) {
+		$items = if ($group.Name -eq 'MissingIndexCandidate') {
+			@($group.Group | Sort-Object -Stable -Descending -Property @{ Expression = { $value = $_.details.estimatedImprovement; if ($null -eq $value) { [double]::MinValue } else { [double]$value } } })
+		}
+		else {
+			@($group.Group | Sort-Object -Stable -Property @{ Expression = { $index = [array]::IndexOf($script:IaOutSeverityOrder, [string]$_.severity); if ($index -lt 0) { 99 } else { $index } } })
+		}
+		[ordered]@{
+			ruleId = $group.Name
+			title = $(if ($script:IaOutRuleNames.Contains($group.Name)) { $script:IaOutRuleNames[$group.Name] } else { $group.Name })
+			findings = @($items)
+		}
+	}
+	return , @($result)
+}
+
+function New-IaOutFindingGroupBlocks {
+	<# Розділ однієї групи знахідок: заголовок h3 і таблиця. Однакова для всієї групи пропонована дія — рядком над таблицею, не стовпцем.
+	   Для MissingIndexCandidate — ще seek, scan, compile, profit і calculated_size з details. #>
+	param([Parameter(Mandatory)][System.Collections.IDictionary]$Group)
+	$findings = @($Group.findings)
+	$blocks = [System.Collections.Generic.List[object]]::new()
+	$blocks.Add(@{ t = 'h'; level = 3; text = "$($Group.title) — $($Group.ruleId) ($($findings.Count))" })
+	$isCandidate = $Group.ruleId -eq 'MissingIndexCandidate'
+	if ($isCandidate) {
+		$blocks.Add(@{ t = 'p'; text = 'seek, scan, compile — user_seeks, user_scans і unique_compiles з sys.dm_db_missing_index_group_stats, підсумовані за злитими пропозиціями й репліками; profit — сума avg_total_user_cost × avg_user_impact × (user_seeks + user_scans) (improvement measure); calculated_size — оцінка розміру нового індексу з кількості рядків і ширини ключа, INCLUDE та локатора рядка. «—» у лічильниках — кандидат лише з планів Query Store, без статистики DMV.' })
+	}
+	$actions = @($findings | ForEach-Object { [string]$_.suggestedAction } | Select-Object -Unique)
+	$actionColumn = $actions.Count -gt 1
+	if (-not $actionColumn) {
+		$blocks.Add(@{ t = 'p'; text = "Пропонована дія: $(Format-IaOutText $actions[0])." })
+	}
+	$headers = @('Важливість', "Об'єкт")
+	if ($isCandidate) {
+		$headers += @('seek', 'scan', 'compile', 'profit', 'calculated_size, МБ')
+	}
+	$headers += 'Повідомлення'
+	if ($actionColumn) {
+		$headers += 'Пропонована дія'
+	}
+	$rows = @(foreach ($finding in $findings) {
+		$row = @([string]$finding.severity, "$($finding.target.database): $(Get-IaOutObjectName $finding.target)")
+		if ($isCandidate) {
+			$details = $finding.details
+			$fromDmv = @($details.sourceIndexHandles | Where-Object { $null -ne $_ }).Count -gt 0
+			$counter = { param($Value) if ($fromDmv) { Format-IaOutGroupedNumber $Value } else { '—' } }
+			$row += @((& $counter $details.userSeeks), (& $counter $details.userScans), (& $counter $details.uniqueCompiles), (& $counter $details.estimatedImprovement),
+				(Format-IaOutGroupedNumber $details.estimate.estimatedSizeMb 1))
+		}
+		$row += (Format-IaOutText $finding.message)
+		if ($actionColumn) {
+			$row += [string]$finding.suggestedAction
+		}
+		, $row
+	})
+	$blocks.Add(@{ t = 'table'; headers = $headers; rows = $rows })
+	return , @($blocks.ToArray())
+}
+
 function New-IaOutReportBlocks {
 	<# Модель звіту для одного запуску (розділ 9). #>
 	param(
@@ -423,14 +524,21 @@ function New-IaOutReportBlocks {
 		$blocks.Add(@{ t = 'ul'; items = @($runErrors | ForEach-Object { if ($_ -is [System.Collections.IDictionary]) { "$($_.stage) [$($_.code)]: $($_.message)" } else { [string]$_ } }); danger = $true })
 	}
 
-	# Знахідки rules engine.
+	# Знахідки rules engine: зведення за правилами й важливістю, далі окремий розділ на кожне правило.
 	$blocks.Add(@{ t = 'h'; level = 2; text = 'Знахідки rules engine' })
 	$findings = @($run.findings | Where-Object { $_ })
 	if ($findings.Count -gt 0) {
-		$blocks.Add(@{ t = 'table'; headers = @('Правило', 'Важливість', "Об'єкт", 'Повідомлення', 'Пропонована дія'); rows = @(foreach ($finding in $findings) {
-						, @([string]$finding.ruleId, [string]$finding.severity, "$($finding.target.database): $(Get-IaOutObjectName $finding.target)", (Format-IaOutText $finding.message), [string]$finding.suggestedAction)
+		$groups = Get-IaOutFindingGroups -Findings $findings
+		$blocks.Add(@{ t = 'table'; headers = @('Група', 'Правило', 'Усього') + $script:IaOutSeverityOrder; rows = @(foreach ($group in $groups) {
+						$counts = foreach ($severity in $script:IaOutSeverityOrder) { [string]@($group.findings | Where-Object { $_.severity -eq $severity }).Count }
+						, (@($group.title, $group.ruleId, [string]@($group.findings).Count) + @($counts))
 					})
 			})
+		foreach ($group in $groups) {
+			foreach ($block in (New-IaOutFindingGroupBlocks -Group $group)) {
+				$blocks.Add($block)
+			}
+		}
 	}
 	else {
 		$blocks.Add(@{ t = 'p'; text = 'Знахідок немає.' })
@@ -701,6 +809,9 @@ function ConvertTo-IaOutHtml {
 	   згорнуті. Єдиний вбудований скрипт сортує таблиці за кліком на заголовок, відкриває текст запиту за посиланням на його id
 	   і додає кнопки «Розгорнути/Згорнути все»; Content-Security-Policy дозволяє лише його (за SHA-256). Без скрипта посилання
 	   на запит веде до розділу «Тексти запитів Query Store». SQL підсвічується тут же, за токенами ScriptDom.
+	   Клітинки таблиць переносяться й посеред довгих імен без пробілів (overflow-wrap: anywhere; <wbr> після '.' і '_' — щоб
+	   переважно по межах частин імені), тож таблиця вміщається в ширину вікна; клітинки лише з числом не переносяться
+	   й вирівнюються праворуч.
 	   Theme: Auto — за налаштуванням браузера чи ОС (prefers-color-scheme); Light/Dark — примусово (атрибут data-theme). #>
 	param(
 		[Parameter(Mandatory)][object[]]$Blocks,
@@ -742,7 +853,8 @@ dialog#query-dialog::backdrop { background: rgba(0, 0, 0, .55); }
 .tbl { overflow-x: auto; margin: .5em 0 1em; }
 table { border-collapse: collapse; width: 100%; font-size: .92em; }
 th, td { border: 1px solid var(--line); padding: 4px 8px; text-align: left; vertical-align: top; }
-td { overflow-wrap: break-word; }
+td { overflow-wrap: anywhere; }
+td.num { white-space: nowrap; text-align: right; }
 th { background: var(--head); } table.kv th { width: 260px; }
 table.sortable thead th { cursor: pointer; user-select: none; }
 table.sortable thead th::after { content: " \2195"; color: var(--muted); }
@@ -932,7 +1044,13 @@ ul.warn, ul.danger { padding: 8px 12px 8px 32px; }
 				$headerCells = ($block.headers | ForEach-Object { "<th scope=""col"">$(ConvertTo-IaOutHtmlText $_)</th>" }) -join ''
 				[void]$sb.AppendLine("<div class=""tbl""><table class=""sortable""><thead><tr>$headerCells</tr></thead><tbody>")
 				foreach ($row in $block.rows) {
-					[void]$sb.AppendLine('<tr>' + ((@($row) | ForEach-Object { "<td>$(& $rich ([string]$_))</td>" }) -join '') + '</tr>')
+					$cells = foreach ($cell in @($row)) {
+						$text = [string]$cell
+						$class = if ($text -match $script:IaOutNumericCellPattern) { ' class="num"' } else { '' }
+						# <wbr> після '.' і '_' перед літерою: довгі імена (schema.table.IX_A_B_INC) переносяться по межах частин.
+						"<td$class>$((& $rich $text) -replace '(?<=[._])(?=[\p{L}\[])', '<wbr>')</td>"
+					}
+					[void]$sb.AppendLine('<tr>' + ($cells -join '') + '</tr>')
 				}
 				[void]$sb.AppendLine('</tbody></table></div>')
 			}

@@ -125,9 +125,11 @@ function Test-IaRuleMissingCompatible {
 
 function Merge-IaMissingIndexes {
 	<# Злиття схожих рекомендацій missing index (однакова таблиця, сумісні ключі) у кандидатів
-	   @{ target; keyColumns; includedColumns; sourceIndexHandles; userSeeks; userScans; avgUserImpact; estimate }.
-	   Джерела — sys.dm_db_missing_index_* з усіх реплік і missing index у планах Query Store. Кандидати, які вже покриває
-	   наявний рядковий індекс без фільтра, пропускаються. #>
+	   @{ target; keyColumns; includedColumns; sourceIndexHandles; userSeeks; userScans; uniqueCompiles; avgUserImpact;
+	   estimatedImprovement; estimate }. estimatedImprovement — сума avg_total_user_cost * avg_user_impact * (user_seeks + user_scans)
+	   злитих пропозицій DMV (improvement measure з документації SQL Server). Джерела — sys.dm_db_missing_index_* з усіх реплік
+	   і missing index у планах Query Store (без лічильників). Кандидати, які вже покриває наявний рядковий індекс без фільтра,
+	   пропускаються. #>
 	[CmdletBinding()]
 	param(
 		[Parameter(Mandatory)][System.Collections.IDictionary]$Snapshot,
@@ -149,7 +151,7 @@ function Merge-IaMissingIndexes {
 						equality = @($missing['equalityColumns'] | Where-Object { $_ }); inequality = @($missing['inequalityColumns'] | Where-Object { $_ })
 						included = @($missing['includedColumns'] | Where-Object { $_ })
 						handles = @([long]$missing['indexHandle']); queryIds = $queryIds
-						seeks = [long]$missing['userSeeks']; scans = [long]$missing['userScans']
+						seeks = [long]$missing['userSeeks']; scans = [long]$missing['userScans']; compiles = [long]$missing['uniqueCompiles']
 						impact = [double]$missing['avgUserImpact']; cost = [double]$missing['avgTotalUserCost']
 					})
 			}
@@ -165,7 +167,7 @@ function Merge-IaMissingIndexes {
 							equality = @($missing['equalityColumns'] | Where-Object { $_ }); inequality = @($missing['inequalityColumns'] | Where-Object { $_ })
 							included = @($missing['includedColumns'] | Where-Object { $_ })
 							handles = @(); queryIds = @([long]$query['queryId'])
-							seeks = [long]0; scans = [long]0
+							seeks = [long]0; scans = [long]0; compiles = [long]0
 							impact = $(if ($null -ne $missing['impact']) { [double]$missing['impact'] } else { 0 }); cost = [double]0
 						})
 				}
@@ -202,8 +204,8 @@ function Merge-IaMissingIndexes {
 						equality = @($item.equality); inequality = @($item.inequality)
 						included = [System.Collections.Generic.List[string]]::new()
 						handles = [System.Collections.Generic.List[long]]::new(); queryIds = [System.Collections.Generic.List[long]]::new()
-						seeks = [long]0; scans = [long]0; impactWeighted = [double]0; impactWeight = [double]0; impactPlain = [System.Collections.Generic.List[double]]::new()
-						costWeighted = [double]0
+						seeks = [long]0; scans = [long]0; compiles = [long]0; impactWeighted = [double]0; impactWeight = [double]0; impactPlain = [System.Collections.Generic.List[double]]::new()
+						costWeighted = [double]0; improvement = [double]0
 					}
 					$clusters.Add($cluster)
 				}
@@ -219,6 +221,8 @@ function Merge-IaMissingIndexes {
 				$weight = [double]($item.seeks + $item.scans)
 				$cluster.seeks += $item.seeks
 				$cluster.scans += $item.scans
+				$cluster.compiles += $item.compiles
+				$cluster.improvement += $item.cost * $item.impact * $weight
 				$cluster.impactWeighted += $item.impact * $weight
 				$cluster.costWeighted += $item.cost * $weight
 				$cluster.impactWeight += $weight
@@ -249,8 +253,10 @@ function Merge-IaMissingIndexes {
 						queryIds = @($cluster.queryIds)
 						userSeeks = $cluster.seeks
 						userScans = $cluster.scans
+						uniqueCompiles = $cluster.compiles
 						avgUserImpact = [math]::Round([double]$impact, 2)
 						avgTotalUserCost = [math]::Round([double]$cost, 2)
+						estimatedImprovement = [math]::Round($cluster.improvement, 0)
 						proposedName = $name
 						estimate = $estimate
 					})

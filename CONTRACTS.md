@@ -212,7 +212,7 @@ tests/<Тека>/*.Tests.ps1, tests/Security/, tests/Fixtures/, tests/TestHelper
 Ключові правила: один snapshot на запитаний сервер; `instances[]` — кожна зібрана репліка окремо (статистика використання своя на кожній); набір не зібрано → відповідні поля `null` (не нулі); `masking` — `{ namesMasked; literalsMasked }` (у сирому snapshot обидва `false`).
 
 ### 5.2 RuleFinding — `New-IaFinding`
-`{ findingId; ruleId; severity = Info|Low|Medium|High; target; relatedIndexes; message; details; suggestedAction }`. Для `MissingIndexCandidate` `details` містить `keyColumns`, `includedColumns`, `sourceIndexHandles`, `estimate`.
+`{ findingId; ruleId; severity = Info|Low|Medium|High; target; relatedIndexes; message; details; suggestedAction }`. Для `MissingIndexCandidate` `details` містить `keyColumns`, `includedColumns`, `sourceIndexHandles`, `userSeeks`, `userScans`, `uniqueCompiles` (суми за злитими пропозиціями DMV і репліками), `estimatedImprovement` (сума `avg_total_user_cost * avg_user_impact * (user_seeks + user_scans)` пропозицій DMV), `estimate`.
 
 ### 5.3 DataPeriod — recommendation.schema.json `$defs.dataPeriod`
 Один на інстанс (`database = $null`) і на кожну базу. `statsFromUtc = max(sqlserverStartTimeUtc, lastFailoverUtc)`; `minRequiredDays` — з `rules.drop.minUptimeDays` або найточнішого `observationOverrides`; `isSufficient = uptimeDays ≥ minRequiredDays`. Для AG `server` — ім'я AG, для бази береться найкоротший період серед зібраних реплік.
@@ -329,7 +329,7 @@ WHERE s.name = @SchemaName AND t.name = @TableName;
 
 ## 9. Формат звітів
 
-Спільне для MD і HTML (по кожному запуску): заголовок (сервер, топологія, runId, час, хто запустив); **період даних** (таблиця DataPeriod; попередження, якщо недостатній); **зібрані набори даних** і попередження про вимкнені; маскування; активні unsafe-прапорці (виділено); модель, токени, вартість, дозапити моделі з рішеннями користувача; знахідки rules engine; рекомендації (порядок: Passed → Warning; CreateIndex, AlterIndex, DropIndex, партиціонування); розділ «Відхилені перевіркою».
+Спільне для MD і HTML (по кожному запуску): заголовок (сервер, топологія, runId, час, хто запустив); **період даних** (таблиця DataPeriod; попередження, якщо недостатній); **зібрані набори даних** і попередження про вимкнені; маскування; активні unsafe-прапорці (виділено); модель, токени, вартість, дозапити моделі з рішеннями користувача; знахідки rules engine — зведення за правилами й важливістю, далі розділ на кожне правило (кандидати на нові індекси — першими, зі стовпцями seek, scan, compile, profit = `estimatedImprovement`, calculated_size = `estimate.estimatedSizeMb`, за profit); рекомендації (порядок: Passed → Warning; CreateIndex, AlterIndex, DropIndex, партиціонування); розділ «Відхилені перевіркою».
 
 Кожна рекомендація: заголовок `NNN. <Action> <schema.table>.<index>`; ризик (рівень і опис); обґрунтування; вплив; період даних; результати перевірки 4.8; для DropIndex — таблиця умов 4.4 (виконано / не виконано / невідомо), профіль правил (стандартний або пом'якшений з причиною), «на скількох аналізах ґрунтується і скільки підтверджень бракує»; cross-check; попередження; скрипт виконання і скрипт відкату (```sql).
 

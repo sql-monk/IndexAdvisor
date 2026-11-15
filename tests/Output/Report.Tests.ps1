@@ -135,7 +135,7 @@ Describe 'Export-IaReport' {
 		$html | Should -Not -Match '(src|href)\s*='
 		$html | Should -Not -Match 'https?://'
 		$html | Should -Match ([regex]::Escape('Небезпечний &lt;script&gt;alert(1)&lt;/script&gt; &amp; &quot;лапки&quot;'))
-		$html | Should -Match ([regex]::Escape('Таблиці dbo.Missing не існує &lt;b&gt;'))
+		$html | Should -Match ([regex]::Escape('Таблиці dbo.<wbr>Missing не існує &lt;b&gt;'))
 		$html | Should -Match 'Період даних'
 		$html | Should -Match '2026-09-01T03:00:00\.000Z'
 		$html | Should -Match 'Умови безпечного видалення \(розділ 4\.4\)'
@@ -174,6 +174,50 @@ Describe 'Export-IaReport' {
 		$md = Get-Content -LiteralPath ($files | Where-Object { $_ -like '*recommendations.md' }) -Raw
 		$md | Should -Match '### Запит 24810038'
 		$md | Should -Match ([regex]::Escape("``````sql`r`n(@p INT)SELECT TOP (10)"))
+	}
+
+	It 'знахідки згруповано за правилами; кандидати на індекси — із seek, scan, compile, profit і calculated_size' {
+		$run = New-TestReportRun
+		$run.findings = InModuleScope IndexAdvisor {
+			$target = { param($Index) New-IaTarget -Server 'AG1' -Database 'Sales' -Schema 'dbo' -Table 'Orders' -Index $Index }
+			@(
+				New-IaFinding -RuleId 'UnusedIndex' -Severity Low -Target (& $target 'IX_Low') -Message 'Не використовується' -SuggestedAction DropIndex
+				New-IaFinding -RuleId 'MissingIndexCandidate' -Severity Low -Target (& $target 'IX_FromPlan') -Message 'Лише з плану' -SuggestedAction CreateIndex -Details ([ordered]@{
+						sourceIndexHandles = @(); userSeeks = 0; userScans = 0; uniqueCompiles = 0; estimatedImprovement = 0; estimate = [ordered]@{ estimatedSizeMb = 12.34 }
+					})
+				New-IaFinding -RuleId 'UnusedIndex' -Severity Medium -Target (& $target 'PK_Orders') -Message 'PK не використовується' -SuggestedAction None
+				New-IaFinding -RuleId 'MissingIndexCandidate' -Severity High -Target (& $target 'IX_OrderDate_With_A_Very_Long_Name_Without_Spaces_INC') -Message 'Кандидат з DMV' -SuggestedAction CreateIndex -Details ([ordered]@{
+						sourceIndexHandles = @(11, 13); userSeeks = 5200; userScans = 7; uniqueCompiles = 4; estimatedImprovement = 42449556; estimate = [ordered]@{ estimatedSizeMb = 1865.86 }
+					})
+			)
+		}
+		$files = InModuleScope IndexAdvisor -Parameters @{ Run = $run; Config = $script:Config } { param($Run, $Config) Export-IaReport -RunResult $Run -Config $Config 6>$null }
+		$html = Get-Content -LiteralPath ($files | Where-Object { $_ -like '*report.html' }) -Raw
+		# Зведення: група, правило, усього й кількість за важливістю.
+		$html | Should -Match ([regex]::Escape('<tr><td>Невикористовувані індекси</td><td>UnusedIndex</td><td class="num">2</td><td class="num">0</td><td class="num">1</td><td class="num">1</td><td class="num">0</td></tr>'))
+		$candidates = $html.IndexOf('<h3>Кандидати на нові індекси — MissingIndexCandidate (2)</h3>')
+		$unused = $html.IndexOf('<h3>Невикористовувані індекси — UnusedIndex (2)</h3>')
+		$candidates | Should -BeGreaterThan 0
+		$unused | Should -BeGreaterThan $candidates
+		$html.IndexOf('<h2>Рекомендації</h2>') | Should -BeGreaterThan $unused
+		$candidateSection = $html.Substring($candidates, $unused - $candidates)
+		$candidateSection | Should -Match ([regex]::Escape('<th scope="col">Важливість</th><th scope="col">Об&#39;єкт</th><th scope="col">seek</th><th scope="col">scan</th><th scope="col">compile</th><th scope="col">profit</th><th scope="col">calculated_size, МБ</th><th scope="col">Повідомлення</th></tr>'))
+		$candidateSection | Should -Match 'Пропонована дія: CreateIndex\.'
+		$candidateSection | Should -Match ([regex]::Escape('<td class="num">5&#160;200</td><td class="num">7</td><td class="num">4</td><td class="num">42&#160;449&#160;556</td><td class="num">1&#160;865.9</td>'))
+		$candidateSection | Should -Match ([regex]::Escape('<td>—</td><td>—</td><td>—</td><td>—</td><td class="num">12.3</td><td>Лише з плану</td>'))
+		# Кандидати — за profit (спадання), інші групи — за важливістю; різні дії в групі — окремим стовпцем.
+		$candidateSection.IndexOf('Кандидат з DMV') | Should -BeLessThan $candidateSection.IndexOf('Лише з плану')
+		$unusedSection = $html.Substring($unused, $html.IndexOf('<h2>Рекомендації</h2>') - $unused)
+		$unusedSection | Should -Match '<th scope="col">Пропонована дія</th>'
+		$unusedSection.IndexOf('PK не використовується') | Should -BeLessThan $unusedSection.IndexOf('Не використовується<')
+		# Довгі значення без пробілів переносяться (переважно по межах частин імені), числа — ні.
+		$candidateSection | Should -Match ([regex]::Escape('<td>Sales: dbo.<wbr>Orders.<wbr>IX_<wbr>OrderDate_<wbr>With_<wbr>A_<wbr>Very_<wbr>Long_<wbr>Name_<wbr>Without_<wbr>Spaces_<wbr>INC</td>'))
+		$html | Should -Match ([regex]::Escape('td { overflow-wrap: anywhere; }'))
+		$html | Should -Match ([regex]::Escape('td.num { white-space: nowrap; text-align: right; }'))
+		$md = Get-Content -LiteralPath ($files | Where-Object { $_ -like '*recommendations.md' }) -Raw
+		$md | Should -Match '### Кандидати на нові індекси — MissingIndexCandidate \(2\)'
+		$md | Should -Match ([regex]::Escape("| Важливість | Об'єкт | seek | scan | compile | profit | calculated_size, МБ | Повідомлення |"))
+		$md | Should -Match '### Невикористовувані індекси — UnusedIndex \(2\)'
 	}
 
 	It 'SQL, який лексер не розбирає повністю, лише екранується' {

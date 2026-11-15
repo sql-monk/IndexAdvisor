@@ -315,8 +315,10 @@ function Invoke-IaRulesEngine {
 						queryIds = @($candidate.queryIds)
 						userSeeks = [long]$candidate.userSeeks
 						userScans = [long]$candidate.userScans
+						uniqueCompiles = [long]$candidate.uniqueCompiles
 						avgUserImpact = $impact
 						avgTotalUserCost = $candidate.avgTotalUserCost
+						estimatedImprovement = $candidate.estimatedImprovement
 						estimate = $candidate.estimate
 					})))
 	}
